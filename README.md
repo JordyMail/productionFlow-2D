@@ -2,4 +2,5 @@
 
 A 2D dashboard for visualizing and managing production line machines in real-time.
 
-<img width="1918" height="859" alt="image" src="https://github.com/user-attachments/assets/3c035aeb-9f1a-4d0a-a515-b0d4e64beab0" />
+<img width="1919" height="894" alt="image" src="https://github.com/user-attachments/assets/9ae3e15b-8d42-48cb-8ce7-c6bef3cd0391" />
+
