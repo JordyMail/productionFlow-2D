@@ -35,15 +35,59 @@ const MachineNode = ({ data, selected }: NodeProps<MachineData>) => {
   return (
     <div
       className={cn(
-        'px-4 py-3 shadow-md rounded-lg bg-white border-2 transition-all duration-200 w-[220px]',
+        'px-4 py-3 shadow-md rounded-lg bg-white border-2 transition-all duration-200 w-[220px] relative',
         selected ? 'border-primary ring-2 ring-primary/20' : 'border-slate-200',
         status === 'down' && !selected && 'border-red-400'
       )}
     >
+      {/* Left Handle (Target/Input) */}
       <Handle
         type="target"
         position={Position.Left}
+        id="left"
         className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ top: '50%' }}
+      />
+      
+      {/* Right Handle (Source/Output) */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ top: '50%' }}
+      />
+
+      {/* Top Handle (Target & Source) */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="top-target"
+        className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ left: '50%' }}
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="top-source"
+        className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ left: '50%' }}
+      />
+
+      {/* Bottom Handle (Target & Source) */}
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="bottom-target"
+        className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ left: '50%' }}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom-source"
+        className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ left: '50%' }}
       />
       
       <div className="flex flex-col gap-2">
@@ -68,12 +112,6 @@ const MachineNode = ({ data, selected }: NodeProps<MachineData>) => {
           <Activity size={20} className={cn('opacity-20', status === 'active' && 'text-green-500 opacity-100 animate-pulse')} />
         </div>
       </div>
-
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="w-3 h-3 bg-primary border-2 border-white"
-      />
     </div>
   );
 };
