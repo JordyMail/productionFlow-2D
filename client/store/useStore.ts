@@ -61,50 +61,10 @@ const createMachineData = (type: string): MachineData => {
   };
 };
 
-// Initial nodes for demo
-const initialNodes: Node<MachineData>[] = [
-  {
-    id: 'node-1',
-    type: 'machineNode',
-    position: { x: 100, y: 100 },
-    data: {
-      label: 'CNC Milling A1',
-      status: 'active',
-      throughput: 85,
-      capacity: 100,
-      lastMaintenance: 'Mar 15, 2024',
-    },
-  },
-  {
-    id: 'node-2',
-    type: 'machineNode',
-    position: { x: 400, y: 200 },
-    data: {
-      label: 'Assembly Line B2',
-      status: 'idle',
-      throughput: 45,
-      capacity: 100,
-      lastMaintenance: 'Mar 10, 2024',
-    },
-  },
-];
-
-const initialEdges: Edge[] = [
-  {
-    id: 'edge-1',
-    source: 'node-1',
-    target: 'node-2',
-    sourceHandle: 'right',
-    targetHandle: 'left',
-    type: 'smoothstep',
-    animated: false,
-    style: { stroke: '#1e293b', strokeWidth: 2 },
-  },
-];
 
 export const useStore = create<FlowState>((set, get) => ({
-  nodes: initialNodes,
-  edges: initialEdges,
+  nodes: [],
+  edges: [],
   selectedNodeId: null,
   lastSaved: null,
 

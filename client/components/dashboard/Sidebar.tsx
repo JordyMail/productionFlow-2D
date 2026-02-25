@@ -13,10 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const machineTypes = [
-  { id: 'cnc', label: 'CNC Milling', icon: Cpu, description: 'Precision metal fabrication' },
-  { id: 'assembly', label: 'Assembly Line', icon: Layers, description: 'Multi-stage product assembly' },
-  { id: 'injection', label: 'Injection Molding', icon: Factory, description: 'Plastic component production' },
-  { id: 'quality', label: 'Quality Control', icon: Settings2, description: 'Final inspection & testing' },
+  { id: '', label: 'New Machine', icon: Settings2, description: 'Add a new machine to the production line' },
 ];
 
 const Sidebar = () => {
