@@ -7,6 +7,7 @@ import ReactFlow, {
   Panel,
 } from 'reactflow';
 import MachineNode from './MachineNode';
+import SaveLoadPanel from './SaveLoadPanel'; // Import baru
 import { useStore } from '@/store/useStore';
 import { Settings, Info } from 'lucide-react';
 
@@ -68,12 +69,15 @@ const FlowCanvas = () => {
           className="border-slate-200"
         />
         
-        <Panel position="top-right" className="bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            LIVE MONITORING
+        <Panel position="top-right" className="flex items-center gap-2">
+          <SaveLoadPanel /> {/* Panel baru untuk save/load */}
+          <div className="bg-white/80 backdrop-blur-sm p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              LIVE
+            </div>
+            <Info size={14} className="text-slate-400" />
           </div>
-          <Info size={14} className="text-slate-400" />
         </Panel>
       </ReactFlow>
     </div>

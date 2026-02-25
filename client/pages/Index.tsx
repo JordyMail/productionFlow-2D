@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useStore } from '@/store/useStore';
+import { useStore, setupAutoSave } from '@/store/useStore';
 import Sidebar from '@/components/dashboard/Sidebar';
 import FlowCanvas from '@/components/flow/FlowCanvas';
 import PropertyPanel from '@/components/dashboard/PropertyPanel';
@@ -20,6 +20,12 @@ export default function Index() {
 
     return () => clearInterval(interval);
   }, [updateThroughput]);
+
+  // Auto-save every 30 seconds (optional)
+  useEffect(() => {
+    const cleanup = setupAutoSave(30000); // 30 seconds
+    return () => cleanup;
+  }, []);
 
   return (
     <div className="h-screen w-full overflow-hidden bg-background">
