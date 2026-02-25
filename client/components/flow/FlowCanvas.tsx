@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -7,7 +7,8 @@ import ReactFlow, {
   Panel,
 } from 'reactflow';
 import MachineNode from './MachineNode';
-import SaveLoadPanel from './SaveLoadPanel'; // Import baru
+import SaveLoadPanel from './SaveLoadPanel';
+import UndoRedoIndicator from './UndoRedoIndicator'; // Import baru
 import { useStore } from '@/store/useStore';
 import { Settings, Info } from 'lucide-react';
 
@@ -23,7 +24,10 @@ const FlowCanvas = () => {
     onEdgesChange,
     onConnect,
     setSelectedNodeId,
+    pushToHistory,
   } = useStore();
+
+  const nodeChangesTimer = useRef<NodeJS.Timeout>();
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: any) => {
@@ -36,16 +40,46 @@ const FlowCanvas = () => {
     setSelectedNodeId(null);
   }, [setSelectedNodeId]);
 
+  // Debounced history push for node movements
+  const onNodesChangeWithHistory = useCallback(
+    (changes: any) => {
+      onNodesChange(changes);
+      
+      // Clear previous timer
+      if (nodeChangesTimer.current) {
+        clearTimeout(nodeChangesTimer.current);
+      }
+      
+      // Set new timer to push to history after movement stops
+      nodeChangesTimer.current = setTimeout(() => {
+        pushToHistory('Node position changed');
+      }, 500);
+    },
+    [onNodesChange, pushToHistory]
+  );
+
+  // Prevent context menu
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    return false;
+  }, []);
+
   return (
-    <div className="w-full h-full bg-slate-50 relative">
+    <div 
+      className="w-full h-full bg-slate-50 relative"
+      onContextMenu={onContextMenu}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={onNodesChangeWithHistory} // Gunakan yang sudah di-debounce
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodeContextMenu={(e) => e.preventDefault()}
+        onEdgeContextMenu={(e) => e.preventDefault()}
+        onPaneContextMenu={(e) => e.preventDefault()}
         nodeTypes={nodeTypes}
         fitView
         snapToGrid
@@ -70,7 +104,7 @@ const FlowCanvas = () => {
         />
         
         <Panel position="top-right" className="flex items-center gap-2">
-          <SaveLoadPanel /> {/* Panel baru untuk save/load */}
+          <SaveLoadPanel />
           <div className="bg-white/80 backdrop-blur-sm p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">
               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -80,6 +114,9 @@ const FlowCanvas = () => {
           </div>
         </Panel>
       </ReactFlow>
+
+      {/* Undo/Redo Indicator */}
+      <UndoRedoIndicator />
     </div>
   );
 };
