@@ -47,7 +47,7 @@ const UndoRedoIndicator = () => {
 
   return (
     <TooltipProvider>
-      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 z-50">
+      <div className="fixed top-4 left-1/3 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 z-50">
         <Tooltip>
           <TooltipTrigger asChild>
             <button
