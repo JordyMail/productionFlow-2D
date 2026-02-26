@@ -44,49 +44,63 @@ import ShapeProperties from '@/components/shapes/ShapeProperties';
 import ShapeLibrary from '@/components/shapes/ShapeLibrary';
 import { cn } from '@/lib/utils';
 
-
-function mergeShapeUpdates(original: Shape, updates: Partial<Shape>): Shape {
-  // Pastikan type tidak berubah
-  if (updates.type && updates.type !== original.type) {
-    console.warn('Cannot change shape type');
-    delete updates.type;
-  }
-  
-  // Merge berdasarkan type
-  switch (original.type) {
-    case 'rectangle':
-      return { ...original, ...updates } as RectangleShape;
-    case 'circle':
-      return { ...original, ...updates } as CircleShape;
-    case 'triangle':
-      return { ...original, ...updates } as TriangleShape;
-    case 'line':
-      return { ...original, ...updates } as LineShape;
-    case 'text':
-      return { ...original, ...updates } as TextShape;
-    default:
-      return original;
-  }
-}
-
 const ShapeEditor = () => {
   const navigate = useNavigate();
   const { templateId } = useParams();
-  const { templates, saveTemplate, selectedTemplateId } = useStore();
+  const { templates, saveTemplate } = useStore();
   
+  // State declarations
   const [template, setTemplate] = useState<MachineTemplate | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [showGrid, setShowGrid] = useState(true);
-  const [isDirty, setIsDirty] = useState(false);
-  
-  // Load template if editing existing
+
+  // Helper function untuk merge shape updates
+  const mergeShapeUpdates = (original: Shape, updates: Partial<Shape>): Shape => {
+    // Pastikan type tidak berubah
+    if (updates.type && updates.type !== original.type) {
+      console.warn('Cannot change shape type');
+      delete updates.type;
+    }
+    
+    // Merge berdasarkan type
+    switch (original.type) {
+      case 'rectangle':
+        return { ...original, ...updates } as RectangleShape;
+      case 'circle':
+        return { ...original, ...updates } as CircleShape;
+      case 'triangle':
+        return { ...original, ...updates } as TriangleShape;
+      case 'line':
+        return { ...original, ...updates } as LineShape;
+      case 'text':
+        return { ...original, ...updates } as TextShape;
+      default:
+        return original;
+    }
+  };
+
+  // Load template berdasarkan ID
   useEffect(() => {
     if (templateId && templateId !== 'new') {
       const existing = templates.find(t => t.id === templateId);
       if (existing) {
-        setTemplate(JSON.parse(JSON.stringify(existing))); // Deep clone
+        // Deep clone untuk menghindari mutasi
+        setTemplate(JSON.parse(JSON.stringify(existing)));
+        toast({
+          title: "Template loaded",
+          description: `Editing "${existing.name}"`,
+          duration: 3000,
+        });
       } else {
+        // Template not found, redirect to new
+        toast({
+          title: "Template not found",
+          description: "Creating new template instead",
+          variant: "destructive",
+          duration: 3000,
+        });
         navigate('/shape-editor/new');
       }
     } else {
@@ -106,111 +120,111 @@ const ShapeEditor = () => {
   }, [templateId, templates, navigate]);
 
   const handleAddShape = (shapeType: string) => {
-  if (!template) return;
-  
-  let newShape: Shape;
-  const baseId = `shape-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
-  switch (shapeType) {
-    case 'rectangle':
-      newShape = {
-        id: baseId,
-        type: 'rectangle',
-        x: template.width / 2 - 25,
-        y: template.height / 2 - 25,
-        width: 50,
-        height: 50,
-        color: '#3b82f6',
-        borderColor: '#1e293b',
-        borderWidth: 1,
-        opacity: 1,
-        zIndex: template.shapes.length,
-      };
-      break;
-      
-    case 'circle':
-      newShape = {
-        id: baseId,
-        type: 'circle',
-        x: template.width / 2 - 25,
-        y: template.height / 2 - 25,
-        radius: 25,
-        color: '#10b981',
-        borderColor: '#1e293b',
-        borderWidth: 1,
-        opacity: 1,
-        zIndex: template.shapes.length,
-      };
-      break;
-      
-    case 'triangle':
-      newShape = {
-        id: baseId,
-        type: 'triangle',
-        x: template.width / 2 - 25,
-        y: template.height / 2 - 25,
-        points: [25, 0, 50, 50, 0, 50],
-        color: '#f59e0b',
-        borderColor: '#1e293b',
-        borderWidth: 1,
-        opacity: 1,
-        zIndex: template.shapes.length,
-      };
-      break;
-      
-    case 'line':
-      newShape = {
-        id: baseId,
-        type: 'line',
-        x: template.width / 2 - 40,
-        y: template.height / 2,
-        points: [0, 0, 80, 0], // Horizontal line from (0,0) to (80,0)
-        color: '#ef4444',
-        strokeColor: '#ef4444',
-        strokeWidth: 2,
-        opacity: 1,
-        zIndex: template.shapes.length,
-      };
-      break;
-      
-    case 'text':
-      newShape = {
-        id: baseId,
-        type: 'text',
-        x: template.width / 2 - 30,
-        y: template.height / 2,
-        text: 'Text',
-        fontSize: 14,
-        fontFamily: 'Arial',
-        color: '#000000',
-        opacity: 1,
-        zIndex: template.shapes.length,
-      };
-      break;
-      
-    default:
-      return;
-  }
-  
-  setTemplate({
-    ...template,
-    shapes: [...template.shapes, newShape]
-  });
-  setSelectedShapeId(newShape.id);
-  setIsDirty(true);
-};
+    if (!template) return;
+    
+    let newShape: Shape;
+    const baseId = `shape-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    switch (shapeType) {
+      case 'rectangle':
+        newShape = {
+          id: baseId,
+          type: 'rectangle',
+          x: template.width / 2 - 25,
+          y: template.height / 2 - 25,
+          width: 50,
+          height: 50,
+          color: '#3b82f6',
+          borderColor: '#1e293b',
+          borderWidth: 1,
+          opacity: 1,
+          zIndex: template.shapes.length,
+        } as RectangleShape;
+        break;
+        
+      case 'circle':
+        newShape = {
+          id: baseId,
+          type: 'circle',
+          x: template.width / 2 - 25,
+          y: template.height / 2 - 25,
+          radius: 25,
+          color: '#10b981',
+          borderColor: '#1e293b',
+          borderWidth: 1,
+          opacity: 1,
+          zIndex: template.shapes.length,
+        } as CircleShape;
+        break;
+        
+      case 'triangle':
+        newShape = {
+          id: baseId,
+          type: 'triangle',
+          x: template.width / 2 - 25,
+          y: template.height / 2 - 25,
+          points: [25, 0, 50, 50, 0, 50],
+          color: '#f59e0b',
+          borderColor: '#1e293b',
+          borderWidth: 1,
+          opacity: 1,
+          zIndex: template.shapes.length,
+        } as TriangleShape;
+        break;
+        
+      case 'line':
+        newShape = {
+          id: baseId,
+          type: 'line',
+          x: template.width / 2 - 40,
+          y: template.height / 2,
+          points: [0, 0, 80, 0], // Horizontal line from (0,0) to (80,0)
+          color: '#ef4444',
+          strokeColor: '#ef4444',
+          strokeWidth: 2,
+          opacity: 1,
+          zIndex: template.shapes.length,
+        } as LineShape;
+        break;
+        
+      case 'text':
+        newShape = {
+          id: baseId,
+          type: 'text',
+          x: template.width / 2 - 30,
+          y: template.height / 2,
+          text: 'Text',
+          fontSize: 14,
+          fontFamily: 'Arial',
+          color: '#000000',
+          opacity: 1,
+          zIndex: template.shapes.length,
+        } as TextShape;
+        break;
+        
+      default:
+        return;
+    }
+    
+    setTemplate({
+      ...template,
+      shapes: [...template.shapes, newShape]
+    });
+    setSelectedShapeId(newShape.id);
+    setIsDirty(true);
+  };
 
   const handleUpdateShape = (shapeId: string, updates: Partial<Shape>) => {
-  if (!template) return;
-  
-  setTemplate({
-    ...template,
-    shapes: template.shapes.map(s => 
-      s.id === shapeId ? mergeShapeUpdates(s, updates) : s
-    )
-  });
-  setIsDirty(true);
-};
+    if (!template) return;
+    
+    setTemplate({
+      ...template,
+      shapes: template.shapes.map(s => 
+        s.id === shapeId ? mergeShapeUpdates(s, updates) : s
+      )
+    });
+    setIsDirty(true);
+  };
 
   const handleDeleteShape = (shapeId: string) => {
     if (!template) return;
