@@ -21,14 +21,18 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import TemplateSelector from './TemplateSelector'; // ✅ Import sudah benar
 
 const PropertyPanel = () => {
+  // ✅ Ambil semua state yang diperlukan
   const { 
     selectedNodeId, 
     nodes, 
     updateNodeData, 
     deleteNode, 
-    setSelectedNodeId 
+    setSelectedNodeId,
+    viewMode,           // ✅ Tambahkan ini
+    nodeTemplates       // ✅ Tambahkan ini
   } = useStore();
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
@@ -165,6 +169,22 @@ const PropertyPanel = () => {
             View History
           </Button>
         </div>
+
+        {/* ✅ Template Selection dengan conditional yang benar */}
+        {viewMode === 'shapes' && (
+          <div className="space-y-3 pt-4 border-t border-slate-100">
+            <Label className="text-xs font-bold text-slate-400 uppercase block">
+              Shape Template
+            </Label>
+            <TemplateSelector 
+              nodeId={selectedNode.id}
+              currentTemplateId={nodeTemplates?.[selectedNode.id]} // ✅ Optional chaining untuk safety
+            />
+            <p className="text-[10px] text-slate-400">
+              Choose a custom shape template for this machine
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

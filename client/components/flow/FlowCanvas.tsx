@@ -11,9 +11,12 @@ import SaveLoadPanel from './SaveLoadPanel';
 import UndoRedoIndicator from './UndoRedoIndicator'; // Import baru
 import { useStore } from '@/store/useStore';
 import { Settings, Info } from 'lucide-react';
+import ViewModeToggle from './ViewModeToggle';
+import ShapeMachineNode from './ShapeMachineNode';
 
 const nodeTypes = {
   machineNode: MachineNode,
+  shapeMachineNode: ShapeMachineNode,
 };
 
 const FlowCanvas = () => {
@@ -25,7 +28,10 @@ const FlowCanvas = () => {
     onConnect,
     setSelectedNodeId,
     pushToHistory,
+    viewMode,
+    getNodeTemplate
   } = useStore();
+
 
   const nodeChangesTimer = useRef<NodeJS.Timeout>();
 
@@ -39,6 +45,23 @@ const FlowCanvas = () => {
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
   }, [setSelectedNodeId]);
+
+   // Transform nodes based on view mode
+  const processedNodes = React.useMemo(() => {
+    if (viewMode === 'default') {
+      return nodes;
+    } else {
+      // For shape mode, use shapeMachineNode type and attach template
+      return nodes.map(node => ({
+        ...node,
+        type: 'shapeMachineNode',
+        data: {
+          ...node.data,
+          template: getNodeTemplate(node.id)
+        }
+      }));
+    }
+  }, [nodes, viewMode, getNodeTemplate]);
 
   // Debounced history push for node movements
   const onNodesChangeWithHistory = useCallback(
@@ -64,15 +87,15 @@ const FlowCanvas = () => {
     return false;
   }, []);
 
-  return (
+ return (
     <div 
       className="w-full h-full bg-slate-50 relative"
       onContextMenu={onContextMenu}
     >
       <ReactFlow
-        nodes={nodes}
+        nodes={processedNodes} // Gunakan processedNodes
         edges={edges}
-        onNodesChange={onNodesChangeWithHistory} // Gunakan yang sudah di-debounce
+        onNodesChange={onNodesChangeWithHistory}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
@@ -104,6 +127,7 @@ const FlowCanvas = () => {
         />
         
         <Panel position="top-right" className="flex items-center gap-2">
+          <ViewModeToggle /> {/* Tambahkan toggle di sini */}
           <SaveLoadPanel />
           <div className="bg-white/80 backdrop-blur-sm p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">
@@ -115,7 +139,6 @@ const FlowCanvas = () => {
         </Panel>
       </ReactFlow>
 
-      {/* Undo/Redo Indicator */}
       <UndoRedoIndicator />
     </div>
   );

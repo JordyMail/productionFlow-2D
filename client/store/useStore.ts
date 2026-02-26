@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { MachineTemplate, ViewMode, TemplatesStore } from '@/shared/types';
 import { 
   Connection, 
   Edge, 
@@ -42,6 +43,22 @@ interface FlowState {
   historyIndex: number;
   maxHistorySize: number;
   
+  // New properties
+  viewMode: ViewMode;
+  templates: MachineTemplate[];
+  nodeTemplates: Record<string, string>; // nodeId -> templateId
+  selectedTemplateId: string | null;
+  
+  // New methods
+  setViewMode: (mode: ViewMode) => void;
+  loadTemplates: () => void;
+  saveTemplate: (template: MachineTemplate) => void;
+  deleteTemplate: (templateId: string) => void;
+  duplicateTemplate: (templateId: string) => void;
+  getTemplateById: (id: string | null) => MachineTemplate | undefined;
+  assignTemplateToNode: (nodeId: string, templateId: string | null) => void;
+  getNodeTemplate: (nodeId: string) => MachineTemplate | undefined;
+  
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
@@ -52,7 +69,7 @@ interface FlowState {
   updateThroughput: () => void;
   
   // Save & Load functions
-  saveToLocalStorage: () => void;
+  saveToLocalStorage: () => boolean;
   loadFromLocalStorage: () => boolean;
   exportToFile: () => void;
   importFromFile: (file: File) => Promise<void>;
@@ -82,7 +99,6 @@ const createMachineData = (type: string): MachineData => {
   };
 };
 
-
 export const useStore = create<FlowState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -98,6 +114,12 @@ export const useStore = create<FlowState>((set, get) => ({
   }],
   historyIndex: 0,
   maxHistorySize: 50,
+  
+  // New state
+  viewMode: 'default',
+  templates: [],
+  nodeTemplates: {},
+  selectedTemplateId: null,
 
   // Helper to push current state to history
   pushToHistory: (description: string) => {
@@ -163,6 +185,135 @@ export const useStore = create<FlowState>((set, get) => ({
     set({ selectedNodeId: id });
   },
 
+  // New methods
+  setViewMode: (mode: ViewMode) => {
+    set({ viewMode: mode });
+  },
+  
+  loadTemplates: () => {
+    try {
+      const saved = localStorage.getItem('flow2d-templates');
+      if (saved) {
+        const templates = JSON.parse(saved);
+        set({ templates });
+      }
+    } catch (error) {
+      console.error('Failed to load templates:', error);
+    }
+  },
+  
+  saveTemplate: (template: MachineTemplate) => {
+    set(state => {
+      const existingIndex = state.templates.findIndex(t => t.id === template.id);
+      let newTemplates;
+      
+      if (existingIndex >= 0) {
+        // Update existing
+        newTemplates = [...state.templates];
+        newTemplates[existingIndex] = template;
+      } else {
+        // Add new
+        newTemplates = [...state.templates, template];
+      }
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+      } catch (error) {
+        console.error('Failed to save templates:', error);
+      }
+      
+      return { templates: newTemplates };
+    });
+    
+    get().pushToHistory(`Saved template: ${template.name}`);
+  },
+  
+  deleteTemplate: (templateId: string) => {
+    set(state => {
+      const newTemplates = state.templates.filter(t => t.id !== templateId);
+      
+      // Remove from any nodes using this template
+      const newNodeTemplates = { ...state.nodeTemplates };
+      Object.keys(newNodeTemplates).forEach(nodeId => {
+        if (newNodeTemplates[nodeId] === templateId) {
+          delete newNodeTemplates[nodeId];
+        }
+      });
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+      } catch (error) {
+        console.error('Failed to save templates:', error);
+      }
+      
+      return { 
+        templates: newTemplates,
+        nodeTemplates: newNodeTemplates
+      };
+    });
+    
+    get().pushToHistory(`Deleted template`);
+  },
+  
+  duplicateTemplate: (templateId: string) => {
+    const { templates } = get();
+    const original = templates.find(t => t.id === templateId);
+    if (!original) return;
+    
+    const duplicate: MachineTemplate = {
+      ...JSON.parse(JSON.stringify(original)),
+      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: `${original.name} (Copy)`,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    set(state => {
+      const newTemplates = [...state.templates, duplicate];
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+      } catch (error) {
+        console.error('Failed to save templates:', error);
+      }
+      
+      return { templates: newTemplates };
+    });
+    
+    get().pushToHistory(`Duplicated template: ${original.name}`);
+  },
+  
+  getTemplateById: (id: string | null) => {
+    if (!id) return undefined;
+    return get().templates.find(t => t.id === id);
+  },
+  
+  assignTemplateToNode: (nodeId: string, templateId: string | null) => {
+    set(state => {
+      const newNodeTemplates = { ...state.nodeTemplates };
+      
+      if (templateId === null) {
+        delete newNodeTemplates[nodeId];
+      } else {
+        newNodeTemplates[nodeId] = templateId;
+      }
+      
+      return { nodeTemplates: newNodeTemplates };
+    });
+    
+    get().pushToHistory(`Assigned template to node`);
+  },
+  
+  getNodeTemplate: (nodeId: string) => {
+    const { nodeTemplates, templates } = get();
+    const templateId = nodeTemplates[nodeId];
+    if (!templateId) return undefined;
+    return templates.find(t => t.id === templateId);
+  },
+  
   addNode: (type: string, position: { x: number; y: number }) => {
     const newNode: Node<MachineData> = {
       id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -255,8 +406,9 @@ export const useStore = create<FlowState>((set, get) => ({
       const flowData = {
         nodes: get().nodes,
         edges: get().edges,
+        nodeTemplates: get().nodeTemplates,
         timestamp: new Date().toISOString(),
-        version: '1.0',
+        version: '1.1', // Update version
       };
       
       localStorage.setItem('flow2d-save', JSON.stringify(flowData));
@@ -283,6 +435,7 @@ export const useStore = create<FlowState>((set, get) => ({
         set({ 
           nodes: flowData.nodes, 
           edges: flowData.edges,
+          nodeTemplates: flowData.nodeTemplates || {},
           lastSaved: new Date(flowData.timestamp).toLocaleString()
         });
         
@@ -303,8 +456,9 @@ export const useStore = create<FlowState>((set, get) => ({
       const flowData = {
         nodes: get().nodes,
         edges: get().edges,
+        nodeTemplates: get().nodeTemplates,
         timestamp: new Date().toISOString(),
-        version: '1.0',
+        version: '1.1',
         appName: 'Flow2D Machine Schema',
       };
       
@@ -338,6 +492,7 @@ export const useStore = create<FlowState>((set, get) => ({
             set({ 
               nodes: flowData.nodes, 
               edges: flowData.edges,
+              nodeTemplates: flowData.nodeTemplates || {},
               lastSaved: new Date(flowData.timestamp).toLocaleString()
             });
             
@@ -360,11 +515,14 @@ export const useStore = create<FlowState>((set, get) => ({
 
   clearAll: () => {
     if (window.confirm('Are you sure you want to clear all machines? This action cannot be undone.')) {
-      set({ nodes: [], edges: [], selectedNodeId: null });
+      set({ nodes: [], edges: [], selectedNodeId: null, nodeTemplates: {} });
       get().pushToHistory('Cleared all machines');
     }
   },
 }));
+
+// Load templates on store creation
+useStore.getState().loadTemplates();
 
 // Auto-save function
 export const setupAutoSave = (intervalMs: number = 30000) => {
