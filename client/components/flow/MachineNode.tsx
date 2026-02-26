@@ -40,23 +40,38 @@ const MachineNode = ({ data, selected }: NodeProps<MachineData>) => {
         status === 'down' && !selected && 'border-red-400'
       )}
     >
-      {/* Left Handle (Target/Input) */}
+      {/* Left Handle (Target & Source) */}
       <Handle
         type="target"
         position={Position.Left}
-        id="left"
+        id="left-target"
+        className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ top: '50%' }}
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="left-source"
         className="w-3 h-3 bg-primary border-2 border-white"
         style={{ top: '50%' }}
       />
       
-      {/* Right Handle (Source/Output) */}
+      {/* Right Handle (Target & Source) */}
       <Handle
-        type="source"
+        type="target"
         position={Position.Right}
-        id="right"
+        id="right-target"
         className="w-3 h-3 bg-primary border-2 border-white"
         style={{ top: '50%' }}
       />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right-source"
+        className="w-3 h-3 bg-primary border-2 border-white"
+        style={{ top: '50%' }}
+      />
+
 
       {/* Top Handle (Target & Source) */}
       <Handle
