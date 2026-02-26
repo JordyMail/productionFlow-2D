@@ -148,7 +148,7 @@ export const useStore = create<FlowState>((set, get) => ({
   },
 
   onNodesChange: (changes: NodeChange[]) => {
-    const { nodes, pushToHistory } = get();
+    const { nodes } = get();
     const newNodes = applyNodeChanges(changes, nodes);
     
     // Check if there's a meaningful change (position, etc)
@@ -244,6 +244,17 @@ export const useStore = create<FlowState>((set, get) => ({
       // Save to localStorage
       try {
         localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+        
+        // Also update the main save to reflect node template changes
+        const flowData = {
+          nodes: state.nodes,
+          edges: state.edges,
+          nodeTemplates: newNodeTemplates,
+          timestamp: new Date().toISOString(),
+          version: '1.1',
+        };
+        localStorage.setItem('flow2d-save', JSON.stringify(flowData));
+        
       } catch (error) {
         console.error('Failed to save templates:', error);
       }
@@ -514,10 +525,9 @@ export const useStore = create<FlowState>((set, get) => ({
   },
 
   clearAll: () => {
-    if (window.confirm('Are you sure you want to clear all machines? This action cannot be undone.')) {
-      set({ nodes: [], edges: [], selectedNodeId: null, nodeTemplates: {} });
-      get().pushToHistory('Cleared all machines');
-    }
+    // Hapus window.confirm, biarkan component yang handle konfirmasi
+    set({ nodes: [], edges: [], selectedNodeId: null, nodeTemplates: {} });
+    get().pushToHistory('Cleared all machines');
   },
 }));
 
