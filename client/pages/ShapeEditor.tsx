@@ -18,7 +18,8 @@ import {
   Move,
   Palette,
   RotateCw,
-  Layers
+  Layers,
+  Frame
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,12 +38,160 @@ import {
     LineShape, 
     TriangleShape, 
     CircleShape, 
-    RectangleShape 
+    RectangleShape,
+    FrameType 
 } from '@/shared/types';
 import ShapeCanvas from '@/components/shapes/ShapeCanvas';
 import ShapeProperties from '@/components/shapes/ShapeProperties';
 import ShapeLibrary from '@/components/shapes/ShapeLibrary';
+import TemplateLibrary from '@/components/shapes/TemplateLibrary';
 import { cn } from '@/lib/utils';
+
+// Frame Type Selector
+const FrameTypeSelector: React.FC<{
+  frameType: FrameType;
+  onChange: (type: FrameType) => void;
+}> = ({ frameType, onChange }) => {
+  return (
+    <div className="space-y-3">
+      <Label className="text-xs font-bold text-slate-400 uppercase">Frame Shape</Label>
+      <div className="grid grid-cols-4 gap-2">
+        <Button
+          variant={frameType === 'rectangle' ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            "h-16 flex-col gap-1",
+            frameType === 'rectangle' && "border-primary ring-1 ring-primary/20"
+          )}
+          onClick={() => onChange('rectangle')}
+        >
+          <Square size={20} />
+          <span className="text-[10px]">Square 1x1</span>
+        </Button>
+        
+        <Button
+          variant={frameType === 'rectangle2x1' ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            "h-16 flex-col gap-1",
+            frameType === 'rectangle2x1' && "border-primary ring-1 ring-primary/20"
+          )}
+          onClick={() => onChange('rectangle2x1')}
+        >
+          <Square size={20} className="rotate-90" />
+          <span className="text-[10px]">Rectangle</span>
+        </Button>
+        
+        <Button
+          variant={frameType === 'circle' ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            "h-16 flex-col gap-1",
+            frameType === 'circle' && "border-primary ring-1 ring-primary/20"
+          )}
+          onClick={() => onChange('circle')}
+        >
+          <Circle size={20} />
+          <span className="text-[10px]">Circle</span>
+        </Button>
+        
+        <Button
+          variant={frameType === 'triangle' ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            "h-16 flex-col gap-1",
+            frameType === 'triangle' && "border-primary ring-1 ring-primary/20"
+          )}
+          onClick={() => onChange('triangle')}
+        >
+          <Triangle size={20} />
+          <span className="text-[10px]">Triangle</span>
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// Size Preset Selector
+const SizePresetSelector: React.FC<{
+  frameType: FrameType;
+  onSelectSize: (width: number, height: number) => void;
+}> = ({ frameType, onSelectSize }) => {
+  // Ukuran untuk setiap frame type
+  const getPresets = () => {
+    switch (frameType) {
+      case 'rectangle': // Square 1x1
+        return {
+          small: { width: 100, height: 100, label: 'Small (100x100)' },
+          medium: { width: 200, height: 200, label: 'Medium (200x200)' },
+          large: { width: 300, height: 300, label: 'Large (300x300)' }
+        };
+      case 'rectangle2x1': // Rectangle 2x1
+        return {
+          small: { width: 120, height: 60, label: 'Small (120x60)' },
+          medium: { width: 240, height: 120, label: 'Medium (240x120)' },
+          large: { width: 360, height: 180, label: 'Large (360x180)' }
+        };
+      case 'circle':
+        return {
+          small: { width: 100, height: 100, label: 'Small (100x100)' },
+          medium: { width: 200, height: 200, label: 'Medium (200x200)' },
+          large: { width: 300, height: 300, label: 'Large (300x300)' }
+        };
+      case 'triangle':
+        return {
+          small: { width: 100, height: 100, label: 'Small (100x100)' },
+          medium: { width: 200, height: 200, label: 'Medium (200x200)' },
+          large: { width: 300, height: 300, label: 'Large (300x300)' }
+        };
+      default:
+        return {
+          small: { width: 100, height: 100, label: 'Small (100x100)' },
+          medium: { width: 200, height: 200, label: 'Medium (200x200)' },
+          large: { width: 300, height: 300, label: 'Large (300x300)' }
+        };
+    }
+  };
+
+  const presets = getPresets();
+
+  return (
+    <div className="space-y-3">
+      <Label className="text-xs font-bold text-slate-400 uppercase">Frame Size</Label>
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-12 flex-col gap-0"
+          onClick={() => onSelectSize(presets.small.width, presets.small.height)}
+        >
+          <span className="text-xs font-bold">Small</span>
+          <span className="text-[8px] text-slate-400">{presets.small.label}</span>
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-12 flex-col gap-0"
+          onClick={() => onSelectSize(presets.medium.width, presets.medium.height)}
+        >
+          <span className="text-xs font-bold">Medium</span>
+          <span className="text-[8px] text-slate-400">{presets.medium.label}</span>
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-12 flex-col gap-0"
+          onClick={() => onSelectSize(presets.large.width, presets.large.height)}
+        >
+          <span className="text-xs font-bold">Large</span>
+          <span className="text-[8px] text-slate-400">{presets.large.label}</span>
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 const ShapeEditor = () => {
   const navigate = useNavigate();
@@ -55,6 +204,23 @@ const ShapeEditor = () => {
   const [isDirty, setIsDirty] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [showGrid, setShowGrid] = useState(true);
+  const [activeTab, setActiveTab] = useState<'library' | 'templates'>('library');
+
+  // Default sizes berdasarkan frame type
+  const getDefaultSize = (frameType: FrameType) => {
+    switch (frameType) {
+      case 'rectangle': // Square 1x1
+        return { width: 200, height: 200 };
+      case 'rectangle2x1': // Rectangle
+        return { width: 240, height: 120 };
+      case 'circle':
+        return { width: 200, height: 200 };
+      case 'triangle':
+        return { width: 200, height: 200 };
+      default:
+        return { width: 200, height: 200 };
+    }
+  };
 
   // Helper function untuk merge shape updates
   const mergeShapeUpdates = (original: Shape, updates: Partial<Shape>): Shape => {
@@ -104,20 +270,60 @@ const ShapeEditor = () => {
         navigate('/shape-editor/new');
       }
     } else {
-      // Create new template
+      // Create new template dengan ukuran default medium
+      const defaultSize = getDefaultSize('rectangle');
       setTemplate({
         id: `template-${Date.now()}`,
         name: 'New Template',
         description: '',
         shapes: [],
-        width: 300,
-        height: 200,
+        width: defaultSize.width,
+        height: defaultSize.height,
+        frameType: 'rectangle',
+        frameColor: '#f8fafc',
+        frameStrokeColor: '#3b82f6',
+        frameStrokeWidth: 2,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         tags: []
       });
     }
   }, [templateId, templates, navigate]);
+
+  const handleSelectTemplate = (selectedTemplate: MachineTemplate | null) => {
+    if (selectedTemplate) {
+      navigate(`/shape-editor/${selectedTemplate.id}`);
+    } else {
+      if (templateId !== 'new') {
+        navigate('/shape-editor/new');
+      }
+    }
+  };
+
+  const handleFrameTypeChange = (frameType: FrameType) => {
+    if (!template) return;
+    
+    // Adjust ukuran berdasarkan frame type (gunakan medium)
+    const defaultSize = getDefaultSize(frameType);
+    
+    setTemplate({
+      ...template,
+      frameType,
+      width: defaultSize.width,
+      height: defaultSize.height
+    });
+    setIsDirty(true);
+  };
+
+  const handleSizeSelect = (width: number, height: number) => {
+    if (!template) return;
+    setTemplate({
+      ...template,
+      width,
+      height
+    });
+    setIsDirty(true);
+  };
 
   const handleAddShape = (shapeType: string) => {
     if (!template) return;
@@ -134,11 +340,14 @@ const ShapeEditor = () => {
           y: template.height / 2 - 25,
           width: 50,
           height: 50,
-          color: '#3b82f6',
-          borderColor: '#1e293b',
-          borderWidth: 1,
+          fillColor: '#3b82f6',
+          strokeColor: '#1e293b',
+          strokeWidth: 1,
+          strokeStyle: 'solid',
           opacity: 1,
           zIndex: template.shapes.length,
+          rotation: 0,
+          borderRadius: 0
         } as RectangleShape;
         break;
         
@@ -149,11 +358,13 @@ const ShapeEditor = () => {
           x: template.width / 2 - 25,
           y: template.height / 2 - 25,
           radius: 25,
-          color: '#10b981',
-          borderColor: '#1e293b',
-          borderWidth: 1,
+          fillColor: '#10b981',
+          strokeColor: '#1e293b',
+          strokeWidth: 1,
+          strokeStyle: 'solid',
           opacity: 1,
           zIndex: template.shapes.length,
+          rotation: 0
         } as CircleShape;
         break;
         
@@ -164,11 +375,13 @@ const ShapeEditor = () => {
           x: template.width / 2 - 25,
           y: template.height / 2 - 25,
           points: [25, 0, 50, 50, 0, 50],
-          color: '#f59e0b',
-          borderColor: '#1e293b',
-          borderWidth: 1,
+          fillColor: '#f59e0b',
+          strokeColor: '#1e293b',
+          strokeWidth: 1,
+          strokeStyle: 'solid',
           opacity: 1,
           zIndex: template.shapes.length,
+          rotation: 0
         } as TriangleShape;
         break;
         
@@ -178,12 +391,14 @@ const ShapeEditor = () => {
           type: 'line',
           x: template.width / 2 - 40,
           y: template.height / 2,
-          points: [0, 0, 80, 0], // Horizontal line from (0,0) to (80,0)
-          color: '#ef4444',
+          points: [0, 0, 80, 0],
+          fillColor: 'transparent',
           strokeColor: '#ef4444',
           strokeWidth: 2,
+          strokeStyle: 'solid',
           opacity: 1,
           zIndex: template.shapes.length,
+          rotation: 0
         } as LineShape;
         break;
         
@@ -196,9 +411,16 @@ const ShapeEditor = () => {
           text: 'Text',
           fontSize: 14,
           fontFamily: 'Arial',
-          color: '#000000',
+          fontWeight: 'normal',
+          fontStyle: 'normal',
+          textAlign: 'left',
+          fillColor: '#000000',
+          strokeColor: 'transparent',
+          strokeWidth: 0,
+          strokeStyle: 'solid',
           opacity: 1,
           zIndex: template.shapes.length,
+          rotation: 0
         } as TextShape;
         break;
         
@@ -298,8 +520,8 @@ const ShapeEditor = () => {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      {/* Left Sidebar - Shape Library */}
-      <div className="w-64 border-r border-slate-200 bg-white flex flex-col">
+      {/* Left Sidebar */}
+      <div className="w-96 border-r border-slate-200 bg-white flex flex-col overflow-y-auto">
         <div className="p-4 border-b border-slate-100">
           <div className="flex items-center gap-2 mb-4">
             <Button 
@@ -335,9 +557,41 @@ const ShapeEditor = () => {
           />
         </div>
         
-        <ShapeLibrary onAddShape={handleAddShape} />
+        {/* Frame Settings */}
+        <div className="p-4 border-b border-slate-100 space-y-4">
+          <FrameTypeSelector 
+            frameType={template.frameType}
+            onChange={handleFrameTypeChange}
+          />
+          
+          <Separator />
+          
+          <SizePresetSelector
+            frameType={template.frameType}
+            onSelectSize={handleSizeSelect}
+          />
+        </div>
         
-        <div className="p-4 border-t border-slate-100 mt-auto">
+        {/* Tabs untuk Shape Library dan Template Library */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col">
+          <TabsList className="grid grid-cols-2 mx-4 mt-2">
+            <TabsTrigger value="library">Shapes</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="library" className="flex-1 overflow-hidden">
+            <ShapeLibrary onAddShape={handleAddShape} />
+          </TabsContent>
+          
+          <TabsContent value="templates" className="flex-1 overflow-hidden">
+            <TemplateLibrary 
+              onSelectTemplate={handleSelectTemplate}
+              selectedTemplateId={templateId !== 'new' ? templateId : null}
+            />
+          </TabsContent>
+        </Tabs>
+        
+        <div className="p-4 border-t border-slate-100">
           <Button 
             onClick={handleSave}
             className="w-full gap-2"
@@ -375,6 +629,14 @@ const ShapeEditor = () => {
           
           <div className="flex-1" />
           
+          {/* Frame info */}
+          <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-md">
+            <Frame size={14} className="text-slate-500" />
+            <span className="text-xs font-medium text-slate-600">
+              {template.width} x {template.height}
+            </span>
+          </div>
+          
           {selectedShapeId && (
             <>
               <Button 
@@ -402,15 +664,23 @@ const ShapeEditor = () => {
           )}
         </div>
 
-        {/* Canvas */}
+        {/* Canvas dengan frame yang bisa diatur ukurannya */}
         <div className="flex-1 overflow-auto p-8 bg-slate-100 flex items-center justify-center">
           <div 
-            className="relative shadow-lg bg-white border border-slate-200"
+            className="relative shadow-lg bg-white border-2 transition-all duration-300"
             style={{
               width: template.width,
               height: template.height,
               transform: `scale(${zoom})`,
-              transformOrigin: 'center'
+              transformOrigin: 'center',
+              borderColor: template.frameStrokeColor || '#3b82f6',
+              borderWidth: template.frameStrokeWidth || 2,
+              borderRadius: template.frameType === 'circle' ? '50%' : 
+                          (template.frameType === 'rectangle' || template.frameType === 'rectangle2x1') ? '8px' : '0',
+              backgroundColor: template.frameColor || '#f8fafc',
+              clipPath: template.frameType === 'triangle' 
+                ? 'polygon(50% 0%, 0% 100%, 100% 100%)' 
+                : 'none'
             }}
           >
             <ShapeCanvas
@@ -422,6 +692,11 @@ const ShapeEditor = () => {
               width={template.width}
               height={template.height}
             />
+            
+            {/* Frame dimension indicator */}
+            <div className="absolute -top-6 left-0 text-[10px] text-slate-400">
+              {template.width} x {template.height} px
+            </div>
           </div>
         </div>
       </div>
