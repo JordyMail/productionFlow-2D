@@ -42,12 +42,12 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
       
       switch (shape.type) {
         case 'rectangle':
-          ctx.fillStyle = shape.color;
+          ctx.fillStyle = shape.fillColor;
           ctx.fillRect(shape.x, shape.y, shape.width || 50, shape.height || 50);
           
-          if (shape.borderColor) {
-            ctx.strokeStyle = shape.borderColor;
-            ctx.lineWidth = shape.borderWidth || 1;
+          if (shape.strokeColor) {
+            ctx.strokeStyle = shape.strokeColor;
+            ctx.lineWidth = shape.strokeWidth || 1;
             ctx.strokeRect(shape.x, shape.y, shape.width || 50, shape.height || 50);
           }
           break;
@@ -55,12 +55,12 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
         case 'circle':
           ctx.beginPath();
           ctx.arc(shape.x + (shape.radius || 25), shape.y + (shape.radius || 25), shape.radius || 25, 0, Math.PI * 2);
-          ctx.fillStyle = shape.color;
+          ctx.fillStyle = shape.fillColor;
           ctx.fill();
           
-          if (shape.borderColor) {
-            ctx.strokeStyle = shape.borderColor;
-            ctx.lineWidth = shape.borderWidth || 1;
+          if (shape.strokeColor) {
+            ctx.strokeStyle = shape.strokeColor;
+            ctx.lineWidth = shape.strokeWidth || 1;
             ctx.stroke();
           }
           break;
@@ -72,12 +72,12 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
             ctx.lineTo(shape.x + shape.points[2], shape.y + shape.points[3]);
             ctx.lineTo(shape.x + shape.points[4], shape.y + shape.points[5]);
             ctx.closePath();
-            ctx.fillStyle = shape.color;
+            ctx.fillStyle = shape.fillColor;
             ctx.fill();
             
-            if (shape.borderColor) {
-              ctx.strokeStyle = shape.borderColor;
-              ctx.lineWidth = shape.borderWidth || 1;
+            if (shape.strokeColor) {
+              ctx.strokeStyle = shape.strokeColor;
+              ctx.lineWidth = shape.strokeWidth || 1;
               ctx.stroke();
             }
           }
@@ -90,7 +90,7 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
             for (let i = 2; i < shape.points.length; i += 2) {
               ctx.lineTo(shape.x + shape.points[i], shape.y + shape.points[i + 1]);
             }
-            ctx.strokeStyle = shape.strokeColor || shape.color;
+            ctx.strokeStyle = shape.strokeColor || shape.fillColor;
             ctx.lineWidth = shape.strokeWidth || 2;
             ctx.stroke();
           }
@@ -98,7 +98,7 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
           
         case 'text':
           ctx.font = `${shape.fontSize || 14}px ${shape.fontFamily || 'Arial'}`;
-          ctx.fillStyle = shape.color;
+          ctx.fillStyle = shape.fillColor;
           ctx.fillText(shape.text || '', shape.x, shape.y + (shape.fontSize || 14));
           break;
       }
@@ -129,7 +129,15 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
             )}
             style={{
               width: template.width,
-              height: template.height
+              height: template.height,
+              borderColor: template.frameStrokeColor || '#3b82f6',
+              borderWidth: template.frameStrokeWidth || 2,
+              borderRadius: template.frameType === 'circle' ? '50%' : 
+                            template.frameType === 'rectangle' ? '8px' : '0',
+              backgroundColor: template.frameColor || '#f8fafc',
+              clipPath: template.frameType === 'triangle' 
+                ? 'polygon(50% 0%, 0% 100%, 100% 100%)' 
+                : 'none'
             }}
           >
             {/* Handles */}

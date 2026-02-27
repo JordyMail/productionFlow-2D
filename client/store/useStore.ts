@@ -229,44 +229,43 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory(`Saved template: ${template.name}`);
   },
   
-  deleteTemplate: (templateId: string) => {
-    set(state => {
-      const newTemplates = state.templates.filter(t => t.id !== templateId);
-      
-      // Remove from any nodes using this template
-      const newNodeTemplates = { ...state.nodeTemplates };
-      Object.keys(newNodeTemplates).forEach(nodeId => {
-        if (newNodeTemplates[nodeId] === templateId) {
-          delete newNodeTemplates[nodeId];
-        }
-      });
-      
-      // Save to localStorage
-      try {
-        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
-        
-        // Also update the main save to reflect node template changes
-        const flowData = {
-          nodes: state.nodes,
-          edges: state.edges,
-          nodeTemplates: newNodeTemplates,
-          timestamp: new Date().toISOString(),
-          version: '1.1',
-        };
-        localStorage.setItem('flow2d-save', JSON.stringify(flowData));
-        
-      } catch (error) {
-        console.error('Failed to save templates:', error);
+ deleteTemplate: (templateId: string) => {
+  set(state => {
+    const newTemplates = state.templates.filter(t => t.id !== templateId);
+    
+    // Remove from any nodes using this template
+    const newNodeTemplates = { ...state.nodeTemplates };
+    Object.keys(newNodeTemplates).forEach(nodeId => {
+      if (newNodeTemplates[nodeId] === templateId) {
+        delete newNodeTemplates[nodeId];
       }
-      
-      return { 
-        templates: newTemplates,
-        nodeTemplates: newNodeTemplates
-      };
     });
     
-    get().pushToHistory(`Deleted template`);
-  },
+    // Save to localStorage
+    try {
+      localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+      
+      // Also update the main save to reflect node template changes
+      const flowData = {
+        nodes: state.nodes,
+        edges: state.edges,
+        nodeTemplates: newNodeTemplates,
+        timestamp: new Date().toISOString(),
+        version: '1.1',
+      };
+      localStorage.setItem('flow2d-save', JSON.stringify(flowData));
+    } catch (error) {
+      console.error('Failed to save templates:', error);
+    }
+    
+    return { 
+      templates: newTemplates,
+      nodeTemplates: newNodeTemplates
+    };
+  });
+  
+  get().pushToHistory(`Deleted template`);
+},
   
   duplicateTemplate: (templateId: string) => {
     const { templates } = get();
