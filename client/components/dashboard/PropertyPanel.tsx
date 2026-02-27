@@ -8,7 +8,8 @@ import {
   Calendar, 
   ChevronRight,
   TrendingUp,
-  Cpu
+  Cpu,
+  RotateCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,19 +21,22 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import TemplateSelector from './TemplateSelector'; // ✅ Import sudah benar
+import TemplateSelector from './TemplateSelector';
 
 const PropertyPanel = () => {
-  // ✅ Ambil semua state yang diperlukan
+  // Ambil semua state yang diperlukan
   const { 
     selectedNodeId, 
     nodes, 
     updateNodeData, 
     deleteNode, 
     setSelectedNodeId,
-    viewMode,           // ✅ Tambahkan ini
-    nodeTemplates       // ✅ Tambahkan ini
+    viewMode,
+    nodeTemplates,
+    getTemplateById,
+    templates
   } = useStore();
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
@@ -52,6 +56,17 @@ const PropertyPanel = () => {
   }
 
   const { data } = selectedNode;
+  const currentTemplateId = nodeTemplates?.[selectedNode.id];
+  
+  // Dapatkan template dari store
+  const currentTemplate = currentTemplateId 
+    ? templates.find(t => t.id === currentTemplateId) 
+    : null;
+
+  // Dapatkan rotasi dari node data (jika ada)
+  const frameRotation = (selectedNode.data as any).frameRotation || 
+                        currentTemplate?.frameRotation || 
+                        0;
 
   const handleChange = (field: keyof MachineData, value: any) => {
     updateNodeData(selectedNode.id, { [field]: value });
@@ -62,6 +77,25 @@ const PropertyPanel = () => {
       deleteNode(selectedNode.id);
     }
   };
+
+  const handleRotationChange = (rotation: number) => {
+    // Pastikan rotasi dalam range 0-360
+    const validRotation = Math.min(360, Math.max(0, rotation));
+    
+    // Simpan rotasi langsung ke node data
+    updateNodeData(selectedNode.id, { 
+      frameRotation: validRotation 
+    });
+    
+    // Trigger re-render dengan state update
+    setTimeout(() => {
+      // Force update untuk memastikan canvas merespon
+      window.dispatchEvent(new Event('resize'));
+    }, 10);
+  };
+
+  // Cek apakah template valid (bukan default shape)
+  const hasValidTemplate = currentTemplate && currentTemplate.id;
 
   return (
     <div className="w-full h-full bg-white border-l border-slate-200 flex flex-col shadow-[-4px_0_12px_rgba(0,0,0,0.02)]">
@@ -170,7 +204,7 @@ const PropertyPanel = () => {
           </Button>
         </div>
 
-        {/* ✅ Template Selection dengan conditional yang benar */}
+        {/* Template Selection - hanya muncul di shape mode */}
         {viewMode === 'shapes' && (
           <div className="space-y-3 pt-4 border-t border-slate-100">
             <Label className="text-xs font-bold text-slate-400 uppercase block">
@@ -178,11 +212,116 @@ const PropertyPanel = () => {
             </Label>
             <TemplateSelector 
               nodeId={selectedNode.id}
-              currentTemplateId={nodeTemplates?.[selectedNode.id]} // ✅ Optional chaining untuk safety
+              currentTemplateId={nodeTemplates?.[selectedNode.id]}
             />
             <p className="text-[10px] text-slate-400">
               Choose a custom shape template for this machine
             </p>
+          </div>
+        )}
+
+        {/* Frame Rotation - hanya muncul jika template dipilih dan valid */}
+        {viewMode === 'shapes' && hasValidTemplate && (
+          <div className="space-y-3 pt-4 border-t border-slate-100">
+            <Label className="text-xs font-bold text-slate-400 uppercase block">
+              Frame Rotation
+            </Label>
+            
+            <div className="space-y-4">
+              {/* Slider untuk rotasi */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">0°</span>
+                  <span className="text-slate-700 font-medium">{frameRotation}°</span>
+                  <span className="text-slate-500">360°</span>
+                </div>
+                <Slider
+                  value={[frameRotation]}
+                  onValueChange={([value]) => handleRotationChange(value)}
+                  min={0}
+                  max={360}
+                  step={15}
+                  className="w-full"
+                />
+              </div>
+              
+              {/* Kontrol rotasi dengan tombol */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => handleRotationChange(frameRotation - 15)}
+                  disabled={frameRotation <= 0}
+                >
+                  <RotateCw size={14} className="rotate-180" />
+                  <span className="ml-1 text-xs">-15°</span>
+                </Button>
+                
+                <Input
+                  type="number"
+                  value={frameRotation}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val)) {
+                      handleRotationChange(val);
+                    }
+                  }}
+                  className="h-8 text-center"
+                  min={0}
+                  max={360}
+                  step={15}
+                />
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => handleRotationChange(frameRotation + 15)}
+                  disabled={frameRotation >= 360}
+                >
+                  <span className="mr-1 text-xs">+15°</span>
+                  <RotateCw size={14} />
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => handleRotationChange(0)}
+                >
+                  Reset
+                </Button>
+              </div>
+              
+              {/* Preview rotasi */}
+              <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-10 h-10 bg-primary/20 border-2 border-primary rounded flex items-center justify-center transition-all duration-200"
+                    style={{
+                      transform: `rotate(${frameRotation}deg)`,
+                    }}
+                  >
+                    <div className="w-1 h-1 bg-primary rounded-full" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-slate-600">Live Preview</p>
+                    <p className="text-[10px] text-slate-400">
+                      {currentTemplate.frameType === 'rectangle' && 'Square 1x1'}
+                      {currentTemplate.frameType === 'rectangle2x1' && 'Rectangle'}
+                      {currentTemplate.frameType === 'circle' && 'Circle'}
+                      {currentTemplate.frameType === 'triangle' && 'Triangle'}
+                      {' • '}{frameRotation}°
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <p className="text-[10px] text-slate-400">
+                Rotate the frame to any angle. Use slider, buttons, or type directly.
+              </p>
+            </div>
           </div>
         )}
       </div>

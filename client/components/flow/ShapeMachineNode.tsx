@@ -11,15 +11,21 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-interface ShapeMachineNodeProps extends NodeProps<MachineData & { template?: MachineTemplate }> {
-  data: MachineData & { template?: MachineTemplate };
+interface ShapeMachineNodeProps extends NodeProps<MachineData & { 
+  template?: MachineTemplate;
+  frameRotation?: number;
+}> {
+  data: MachineData & { 
+    template?: MachineTemplate;
+    frameRotation?: number;
+  };
 }
 
 const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { label, template } = data;
+  const { label, template, frameRotation } = data;
 
-  // Draw shapes on canvas
+  // Draw shapes on canvas - TANPA ROTASI
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !template) return;
@@ -31,9 +37,9 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
     ctx.clearRect(0, 0, template.width, template.height);
 
     // Sort shapes by zIndex
-    const sortedShapes = [...template.shapes].sort((a, b) => a.zIndex - b.zIndex);
+    const sortedShapes = [...template.shapes].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
-    // Draw each shape
+    // Draw each shape - TANPA rotasi
     sortedShapes.forEach(shape => {
       ctx.save();
       
@@ -45,9 +51,9 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
           ctx.fillStyle = shape.fillColor;
           ctx.fillRect(shape.x, shape.y, shape.width || 50, shape.height || 50);
           
-          if (shape.strokeColor) {
+          if (shape.strokeWidth > 0) {
             ctx.strokeStyle = shape.strokeColor;
-            ctx.lineWidth = shape.strokeWidth || 1;
+            ctx.lineWidth = shape.strokeWidth;
             ctx.strokeRect(shape.x, shape.y, shape.width || 50, shape.height || 50);
           }
           break;
@@ -58,9 +64,9 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
           ctx.fillStyle = shape.fillColor;
           ctx.fill();
           
-          if (shape.strokeColor) {
+          if (shape.strokeWidth > 0) {
             ctx.strokeStyle = shape.strokeColor;
-            ctx.lineWidth = shape.strokeWidth || 1;
+            ctx.lineWidth = shape.strokeWidth;
             ctx.stroke();
           }
           break;
@@ -75,9 +81,9 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
             ctx.fillStyle = shape.fillColor;
             ctx.fill();
             
-            if (shape.strokeColor) {
+            if (shape.strokeWidth > 0) {
               ctx.strokeStyle = shape.strokeColor;
-              ctx.lineWidth = shape.strokeWidth || 1;
+              ctx.lineWidth = shape.strokeWidth;
               ctx.stroke();
             }
           }
@@ -90,22 +96,67 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
             for (let i = 2; i < shape.points.length; i += 2) {
               ctx.lineTo(shape.x + shape.points[i], shape.y + shape.points[i + 1]);
             }
-            ctx.strokeStyle = shape.strokeColor || shape.fillColor;
+            ctx.strokeStyle = shape.strokeColor;
             ctx.lineWidth = shape.strokeWidth || 2;
             ctx.stroke();
           }
           break;
           
         case 'text':
-          ctx.font = `${shape.fontSize || 14}px ${shape.fontFamily || 'Arial'}`;
+          ctx.font = `${shape.fontStyle || 'normal'} ${shape.fontWeight || 'normal'} ${shape.fontSize}px ${shape.fontFamily}`;
           ctx.fillStyle = shape.fillColor;
-          ctx.fillText(shape.text || '', shape.x, shape.y + (shape.fontSize || 14));
+          ctx.textAlign = shape.textAlign || 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(shape.text || 'Text', shape.x, shape.y);
           break;
       }
       
       ctx.restore();
     });
-  }, [template]);
+  }, [template]); // ✅ Hanya template sebagai dependency, TIDAK frameRotation
+
+  // Function to get frame style based on type and rotation
+  const getFrameStyle = () => {
+    if (!template) return {};
+
+    // Get rotation value (priority: node data > template)
+    const rotation = frameRotation ?? template.frameRotation ?? 0;
+
+    const baseStyle: React.CSSProperties = {
+      width: template.width,
+      height: template.height,
+      borderColor: template.frameStrokeColor || '#3b82f6',
+      borderWidth: template.frameStrokeWidth || 2,
+      backgroundColor: template.frameColor || '#f8fafc',
+      transform: rotation ? `rotate(${rotation}deg)` : 'none',
+      transition: 'transform 0.2s ease',
+    };
+
+    // Apply border radius and clip path based on frame type
+    switch (template.frameType) {
+      case 'rectangle':
+      case 'rectangle2x1':
+        return {
+          ...baseStyle,
+          borderRadius: '8px',
+          borderStyle: 'solid',
+        };
+      case 'circle':
+        return {
+          ...baseStyle,
+          borderRadius: '50%',
+          borderStyle: 'solid',
+        };
+      case 'triangle':
+        return {
+          ...baseStyle,
+          clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
+          borderStyle: 'solid',
+        };
+      default:
+        return baseStyle;
+    }
+  };
 
   if (!template) {
     // Fallback to default node if no template
@@ -118,6 +169,9 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
     );
   }
 
+  // Get rotation for display
+  const rotation = frameRotation ?? template.frameRotation ?? 0;
+
   return (
     <TooltipProvider>
       <Tooltip delayDuration={300}>
@@ -127,20 +181,22 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
               'shadow-md rounded-lg bg-white border-2 transition-all duration-200 relative',
               selected ? 'border-primary ring-2 ring-primary/20' : 'border-slate-200'
             )}
-            style={{
-              width: template.width,
-              height: template.height,
-              borderColor: template.frameStrokeColor || '#3b82f6',
-              borderWidth: template.frameStrokeWidth || 2,
-              borderRadius: template.frameType === 'circle' ? '50%' : 
-                            template.frameType === 'rectangle' ? '8px' : '0',
-              backgroundColor: template.frameColor || '#f8fafc',
-              clipPath: template.frameType === 'triangle' 
-                ? 'polygon(50% 0%, 0% 100%, 100% 100%)' 
-                : 'none'
-            }}
+            style={getFrameStyle()}
           >
-            {/* Handles */}
+            {/* Rotation indicator - small dot to show orientation */}
+            {rotation !== 0 && (
+              <div 
+                className="absolute w-2 h-2 bg-primary rounded-full"
+                style={{
+                  top: '5px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  boxShadow: '0 0 0 2px white',
+                }}
+              />
+            )}
+
+            {/* Handles - tetap di posisi yang sama secara visual */}
             <Handle
               type="target"
               position={Position.Left}
@@ -201,18 +257,36 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
               style={{ left: '50%' }}
             />
 
-            {/* Canvas for shapes */}
+            {/* Canvas untuk shapes - TANPA ROTASI */}
             <canvas
               ref={canvasRef}
               width={template.width}
               height={template.height}
               className="rounded-lg"
+              // ✅ HAPUS transform rotate dari canvas
+              // style={{
+              //   transform: rotation ? `rotate(${rotation}deg)` : 'none',
+              // }}
             />
           </div>
         </TooltipTrigger>
         
         <TooltipContent side="top" className="bg-slate-800 text-white border-none">
-          <p className="text-xs font-medium">{label}</p>
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-medium">{label}</p>
+            {rotation !== 0 && (
+              <p className="text-[10px] text-slate-300">Frame rotated: {rotation}°</p>
+            )}
+            <p className="text-[10px] text-slate-400">
+              {template.frameType === 'rectangle' && 'Square 1x1'}
+              {template.frameType === 'rectangle2x1' && 'Rectangle'}
+              {template.frameType === 'circle' && 'Circle'}
+              {template.frameType === 'triangle' && 'Triangle'}
+            </p>
+            <p className="text-[8px] text-slate-500">
+              {template.width} x {template.height} • {template.shapes.length} shapes
+            </p>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

@@ -22,6 +22,8 @@ export interface MachineData {
   throughput: number;
   capacity: number;
   lastMaintenance: string;
+  template?: MachineTemplate;
+  frameRotation?: number;
 }
 
 // History item type
@@ -336,16 +338,35 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory(`Added ${type} machine`);
   },
 
-  updateNodeData: (nodeId: string, data: Partial<MachineData>) => {
-    set({
-      nodes: get().nodes.map((node) =>
-        node.id === nodeId
-          ? { ...node, data: { ...node.data, ...data } }
-          : node
-      ),
-    });
+updateNodeData: (nodeId: string, data: Partial<MachineData & { template?: MachineTemplate }>) => {
+  set({
+    nodes: get().nodes.map((node) =>
+      node.id === nodeId
+        ? { 
+            ...node, 
+            data: { 
+              ...node.data, 
+              ...data,
+              // Jika ada template, merge dengan template yang sudah ada
+              template: data.template 
+                ? { 
+                    ...(node.data as any).template, 
+                    ...data.template 
+                  }
+                : (node.data as any).template
+            } 
+          }
+        : node
+    ),
+  });
+  
+  // Jika ada perubahan template, push ke history
+  if (data.template) {
+    get().pushToHistory('Updated machine template');
+  } else {
     get().pushToHistory('Updated machine properties');
-  },
+  }
+},
 
   deleteNode: (nodeId: string) => {
     set({
