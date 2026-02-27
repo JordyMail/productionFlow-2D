@@ -68,6 +68,7 @@ export interface MachineTemplate {
   frameColor?: string; 
   frameStrokeColor?: string; 
   frameStrokeWidth?: number;
+  frameRotation?: number;
   createdAt: number;
   updatedAt: number;
   tags?: string[];
