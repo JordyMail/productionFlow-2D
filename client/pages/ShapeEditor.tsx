@@ -79,7 +79,20 @@ const FrameTypeSelector: React.FC<{
           onClick={() => onChange('rectangle2x1')}
         >
           <Square size={20} className="rotate-90" />
-          <span className="text-[10px]">Rectangle</span>
+          <span className="text-[10px]">X-Rectangle</span>
+        </Button>
+
+        <Button
+          variant={frameType === 'rectangle1x2' ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            "h-16 flex-col gap-1",
+            frameType === 'rectangle1x2' && "border-primary ring-1 ring-primary/20"
+          )}
+          onClick={() => onChange('rectangle1x2')}
+        >
+          <Square size={20} className="rotate-90" />
+          <span className="text-[10px]">Y-Rectangle</span>
         </Button>
         
         <Button
@@ -122,7 +135,7 @@ const SizePresetSelector: React.FC<{
     switch (frameType) {
       case 'rectangle': // Square 1x1
         return {
-          small: { width: 100, height: 100, label: 'Small (100x100)' },
+          small: { width: 120, height: 120, label: 'Small (120x120)' },
           medium: { width: 200, height: 200, label: 'Medium (200x200)' },
           large: { width: 300, height: 300, label: 'Large (300x300)' }
         };
@@ -131,6 +144,12 @@ const SizePresetSelector: React.FC<{
           small: { width: 120, height: 60, label: 'Small (120x60)' },
           medium: { width: 240, height: 120, label: 'Medium (240x120)' },
           large: { width: 360, height: 180, label: 'Large (360x180)' }
+        };
+      case 'rectangle1x2': // Rectangle 1x2
+        return {
+          small: { width: 60, height: 120, label: 'Small (60x120)' },
+          medium: { width: 120, height: 240, label: 'Medium (120x240)' },
+          large: { width: 180, height: 360, label: 'Large (180x360)' }
         };
       case 'circle':
         return {
@@ -213,6 +232,8 @@ const ShapeEditor = () => {
         return { width: 200, height: 200 };
       case 'rectangle2x1': // Rectangle
         return { width: 240, height: 120 };
+      case 'rectangle1x2': // Rectangle
+        return { width: 120, height: 240 };
       case 'circle':
         return { width: 200, height: 200 };
       case 'triangle':
@@ -676,7 +697,7 @@ const ShapeEditor = () => {
               borderColor: template.frameStrokeColor || '#3b82f6',
               borderWidth: template.frameStrokeWidth || 2,
               borderRadius: template.frameType === 'circle' ? '50%' : 
-                          (template.frameType === 'rectangle' || template.frameType === 'rectangle2x1') ? '8px' : '0',
+              (template.frameType === 'rectangle' || template.frameType === 'rectangle2x1' || template.frameType === 'rectangle1x2') ? '8px' : '0',
               backgroundColor: template.frameColor || '#f8fafc',
               clipPath: template.frameType === 'triangle' 
                 ? 'polygon(50% 0%, 0% 100%, 100% 100%)' 
