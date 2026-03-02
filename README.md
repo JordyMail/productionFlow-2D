@@ -1,4 +1,4 @@
-# Flow 2D - Production Line Dashboard
+# Flow 2D - Production Line
 
 A 2D dashboard for visualizing and managing production line machines in real-time.
 
