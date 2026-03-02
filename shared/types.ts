@@ -3,7 +3,7 @@
 // Shape primitives
 export type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'line' | 'text';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
-export type FrameType = 'rectangle' | 'rectangle2x1' | 'circle' | 'triangle';
+export type FrameType = 'rectangle' | 'rectangle2x1' | 'rectangle1x2' | 'circle' | 'triangle';
 
 export interface BaseShape {
   id: string;
