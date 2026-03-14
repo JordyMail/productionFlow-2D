@@ -158,3 +158,33 @@ export const createDefaultShape = (type: ShapeType, id: string): Shape => {
       } as TextShape;
   }
 };
+
+// shared/types.ts
+
+// Tambahkan tipe untuk Operator
+export interface OperatorData {
+  id: number;           // ID operator (bisa sama untuk beberapa operator)
+  process: number;      // Process order (harus unik per ID)
+  label?: string;       // Label optional
+  position?: { x: number; y: number };
+}
+
+// Update MachineData jika perlu
+export interface MachineData {
+  label: string;
+  status: 'active' | 'idle' | 'warning' | 'down';
+  throughput: number;
+  capacity: number;
+  lastMaintenance: string;
+  template?: MachineTemplate;
+  frameRotation?: number;
+}
+
+// Union type untuk semua node data
+export type NodeData = MachineData | OperatorData;
+
+// Tambahkan konstanta untuk tipe node
+export const NODE_TYPES = {
+  MACHINE: 'machineNode',
+  OPERATOR: 'operatorNode',
+} as const;

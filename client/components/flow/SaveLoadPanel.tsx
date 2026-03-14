@@ -1,3 +1,4 @@
+// client/components/flow/SaveLoadPanel.tsx
 import React, { useState, useRef } from 'react';
 import { 
   Save, 
@@ -8,7 +9,10 @@ import {
   CheckCircle,
   AlertCircle,
   FileJson,
-  HardDrive
+  HardDrive,
+  X,
+  Link2,
+  Network
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { 
@@ -18,10 +22,22 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const SaveLoadPanel = () => {
   const { 
@@ -31,11 +47,14 @@ const SaveLoadPanel = () => {
     importFromFile, 
     clearAll,
     lastSaved,
-    nodes 
+    nodes,
+    edges,
+    deleteEdge
   } = useStore();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [showEdgeList, setShowEdgeList] = useState(false);
 
   const handleSave = () => {
     const success = saveToLocalStorage();
@@ -123,13 +142,84 @@ const SaveLoadPanel = () => {
   };
 
   const handleClear = () => {
-    clearAll();
-    toast({
-      title: "Canvas cleared",
-      description: "All machines have been removed",
-      duration: 3000,
-    });
+    if (nodes.length === 0 && edges.length === 0) {
+      toast({
+        title: "Canvas already empty",
+        description: "No nodes or edges to clear",
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Tanyakan konfirmasi
+    if (window.confirm('Are you sure you want to clear all nodes and connections?')) {
+      clearAll();
+      toast({
+        title: "Canvas cleared",
+        description: "All nodes and connections have been removed",
+        duration: 3000,
+      });
+      setShowEdgeList(false); // Close edge list after clearing
+    }
   };
+
+  const handleDeleteEdge = (edgeId: string) => {
+    // Cari edge yang akan dihapus untuk mendapatkan detailnya
+    const edgeToDelete = edges.find(e => e.id === edgeId);
+    const sourceNode = edgeToDelete ? nodes.find(n => n.id === edgeToDelete.source) : null;
+    const targetNode = edgeToDelete ? nodes.find(n => n.id === edgeToDelete.target) : null;
+    
+    const sourceLabel = sourceNode?.data.label || sourceNode?.id.substring(0, 8);
+    const targetLabel = targetNode?.data.label || targetNode?.id.substring(0, 8);
+    
+    if (confirm(`Are you sure you want to delete connection between ${sourceLabel} and ${targetLabel}?`)) {
+      deleteEdge(edgeId);
+      toast({
+        title: "Connection deleted",
+        description: "The edge has been removed",
+        duration: 3000,
+      });
+    }
+  };
+
+  const handleDeleteAllEdges = () => {
+    if (edges.length === 0) {
+      toast({
+        title: "No connections",
+        description: "There are no edges to delete",
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (confirm(`Are you sure you want to delete all ${edges.length} connections?`)) {
+      // Hapus semua edges satu per satu
+      edges.forEach(edge => {
+        deleteEdge(edge.id);
+      });
+      toast({
+        title: "All connections deleted",
+        description: `${edges.length} edges have been removed`,
+        duration: 3000,
+      });
+      setShowEdgeList(false);
+    }
+  };
+
+  // Hitung jumlah edges berdasarkan tipe
+  const machineEdges = edges.filter(edge => {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    const targetNode = nodes.find(n => n.id === edge.target);
+    return sourceNode?.type !== 'operatorNode' && targetNode?.type !== 'operatorNode';
+  });
+
+  const operatorEdges = edges.filter(edge => {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    const targetNode = nodes.find(n => n.id === edge.target);
+    return sourceNode?.type === 'operatorNode' && targetNode?.type === 'operatorNode';
+  });
+
+  const mixedEdges = edges.length - machineEdges.length - operatorEdges.length;
 
   return (
     <>
@@ -153,7 +243,7 @@ const SaveLoadPanel = () => {
           </Button>
         </DropdownMenuTrigger>
         
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Data Management
           </DropdownMenuLabel>
@@ -182,7 +272,134 @@ const SaveLoadPanel = () => {
           
           <DropdownMenuSeparator />
           
-          <DropdownMenuItem onClick={handleClear} className="gap-2 cursor-pointer text-red-600 focus:text-red-600">
+          {/* Connections Management Submenu */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="gap-2 cursor-pointer">
+              <Network size={14} className="text-slate-500" />
+              <span>Manage Connections</span>
+              {edges.length > 0 && (
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {edges.length}
+                </Badge>
+              )}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="w-64">
+                <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Connections ({edges.length})
+                </DropdownMenuLabel>
+                
+                {/* Stats */}
+                <div className="px-2 py-1.5 text-xs space-y-1 border-b border-slate-100">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Machine Connections:</span>
+                    <span className="font-medium">{machineEdges.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Operator Connections:</span>
+                    <span className="font-medium text-purple-600">{operatorEdges.length}</span>
+                  </div>
+                  {mixedEdges > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Mixed Connections:</span>
+                      <span className="font-medium text-amber-600">{mixedEdges}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {edges.length === 0 ? (
+                  <div className="px-2 py-3 text-center text-slate-400 text-xs">
+                    No connections yet
+                  </div>
+                ) : (
+                  <>
+                    {/* Delete All Option */}
+                    <DropdownMenuItem 
+                      onClick={handleDeleteAllEdges}
+                      className="gap-2 cursor-pointer text-red-600 focus:text-red-600 border-b border-slate-100"
+                    >
+                      <Trash2 size={14} />
+                      <span>Delete All Connections</span>
+                    </DropdownMenuItem>
+                    
+                    {/* Edge List with Scroll */}
+                    <ScrollArea className="h-48">
+                      <div className="py-1">
+                        {edges.map(edge => {
+                          const sourceNode = nodes.find(n => n.id === edge.source);
+                          const targetNode = nodes.find(n => n.id === edge.target);
+                          
+                          // Determine edge type for styling
+                          const isOperatorEdge = sourceNode?.type === 'operatorNode' && targetNode?.type === 'operatorNode';
+                          const isMachineEdge = sourceNode?.type === 'machineNode' && targetNode?.type === 'machineNode';
+                          const isMixedEdge = !isOperatorEdge && !isMachineEdge;
+                          
+                          const sourceLabel = sourceNode?.data.label || sourceNode?.id.substring(0, 8);
+                          const targetLabel = targetNode?.data.label || targetNode?.id.substring(0, 8);
+                          
+                          return (
+                            <div 
+                              key={edge.id} 
+                              className={cn(
+                                "flex items-center justify-between px-2 py-1.5 text-xs group hover:bg-slate-50",
+                                isOperatorEdge && "bg-purple-50/30"
+                              )}
+                            >
+                              <div className="flex items-center gap-1 min-w-0 flex-1">
+                                <Link2 size={10} className={cn(
+                                  "flex-shrink-0",
+                                  isOperatorEdge ? "text-purple-400" : 
+                                  isMachineEdge ? "text-blue-400" : 
+                                  "text-amber-400"
+                                )} />
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={cn(
+                                        "truncate max-w-[120px]",
+                                        isOperatorEdge ? "text-purple-700" : "text-slate-600"
+                                      )}>
+                                        {sourceLabel} → {targetLabel}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left">
+                                      <p className="text-xs">
+                                        {sourceLabel} → {targetLabel}
+                                      </p>
+                                      {edge.data?.operatorId && (
+                                        <p className="text-xs text-purple-600">
+                                          Operator ID: {edge.data.operatorId}
+                                        </p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-700 hover:bg-red-50 transition-opacity"
+                                onClick={() => handleDeleteEdge(edge.id)}
+                              >
+                                <X size={12} />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          
+          <DropdownMenuSeparator />
+          
+          <DropdownMenuItem 
+            onClick={handleClear} 
+            className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
+          >
             <Trash2 size={14} />
             <span>Clear All</span>
           </DropdownMenuItem>
@@ -191,11 +408,29 @@ const SaveLoadPanel = () => {
 
       {/* Last saved indicator */}
       {lastSaved && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm flex items-center gap-2 text-xs z-50 cursor-help">
+                <Clock size={12} className="text-slate-400" />
+                <span className="text-slate-500">Last saved:</span>
+                <span className="font-medium text-slate-700">{lastSaved}</span>
+                <CheckCircle size={12} className="text-green-500" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p className="text-xs">Auto-save runs every 30 seconds</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      {/* Edge count badge (optional) */}
+      {edges.length > 0 && !lastSaved && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm flex items-center gap-2 text-xs z-50">
-          <Clock size={12} className="text-slate-400" />
-          <span className="text-slate-500">Last saved:</span>
-          <span className="font-medium text-slate-700">{lastSaved}</span>
-          <CheckCircle size={12} className="text-green-500" />
+          <Network size={12} className="text-slate-400" />
+          <span className="text-slate-500">{edges.length}</span>
+          <span className="text-slate-500">connection{edges.length !== 1 ? 's' : ''}</span>
         </div>
       )}
     </>

@@ -1,5 +1,6 @@
+// client/store/useStore.ts
 import { create } from 'zustand';
-import { MachineTemplate, ViewMode, TemplatesStore } from '@/shared/types';
+import { MachineTemplate, ViewMode, TemplatesStore, OperatorData, NODE_TYPES } from '@/shared/types';
 import { 
   Connection, 
   Edge, 
@@ -26,16 +27,19 @@ export interface MachineData {
   frameRotation?: number;
 }
 
+// Union type untuk semua node data
+export type NodeData = MachineData | OperatorData;
+
 // History item type
 interface HistoryItem {
-  nodes: Node<MachineData>[];
+  nodes: Node<NodeData>[];
   edges: Edge[];
   timestamp: number;
   description: string;
 }
 
 interface FlowState {
-  nodes: Node<MachineData>[];
+  nodes: Node<NodeData>[];
   edges: Edge[];
   selectedNodeId: string | null;
   lastSaved: string | null;
@@ -45,13 +49,13 @@ interface FlowState {
   historyIndex: number;
   maxHistorySize: number;
   
-  // New properties
+  // View and templates
   viewMode: ViewMode;
   templates: MachineTemplate[];
-  nodeTemplates: Record<string, string>; // nodeId -> templateId
+  nodeTemplates: Record<string, string>;
   selectedTemplateId: string | null;
   
-  // New methods
+  // Methods
   setViewMode: (mode: ViewMode) => void;
   loadTemplates: () => void;
   saveTemplate: (template: MachineTemplate) => void;
@@ -61,28 +65,36 @@ interface FlowState {
   assignTemplateToNode: (nodeId: string, templateId: string | null) => void;
   getNodeTemplate: (nodeId: string) => MachineTemplate | undefined;
   
+  // Node operations
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
   setSelectedNodeId: (id: string | null) => void;
   addNode: (type: string, position: { x: number; y: number }) => void;
-  updateNodeData: (nodeId: string, data: Partial<MachineData>) => void;
+  addOperator: (position: { x: number; y: number }) => void;
+  updateNodeData: (nodeId: string, data: Partial<NodeData>) => void;
   deleteNode: (nodeId: string) => void;
   updateThroughput: () => void;
   
-  // Save & Load functions
+  // Operator specific methods
+  updateOperatorConnections: () => void;
+  
+  // Save & Load
   saveToLocalStorage: () => boolean;
   loadFromLocalStorage: () => boolean;
   exportToFile: () => void;
   importFromFile: (file: File) => Promise<void>;
   clearAll: () => void;
   
-  // Undo/Redo functions
+  // Undo/Redo
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
   pushToHistory: (description: string) => void;
+  
+  // Edge deletion
+  deleteEdge: (edgeId: string) => void;
 }
 
 // Helper function to generate initial machine data
@@ -99,6 +111,76 @@ const createMachineData = (type: string): MachineData => {
       year: 'numeric' 
     }),
   };
+};
+
+// Helper untuk generate operator data
+const createOperatorData = (existingOperators: Node<OperatorData>[]): OperatorData => {
+  // Cari ID terbesar untuk menentukan ID baru
+  const maxId = existingOperators.length > 0 
+    ? Math.max(...existingOperators.map(n => n.data.id)) 
+    : 0;
+  
+  const newId = maxId + 1;
+  
+  // Cari process number yang tersedia untuk ID ini
+  const operatorsWithSameId = existingOperators.filter(n => n.data.id === newId);
+  const usedProcesses = operatorsWithSameId.map(n => n.data.process);
+  
+  // Cari process number terkecil yang belum digunakan (1-999)
+  let newProcess = 1;
+  while (usedProcesses.includes(newProcess)) {
+    newProcess++;
+    if (newProcess > 999) newProcess = 1; // Safety, loop around
+  }
+  
+  return {
+    id: newId,
+    process: newProcess,
+    label: `Operator ${newId}.${newProcess}`,
+  };
+};
+
+// Helper function untuk menentukan handle terdekat antara dua node
+const getNearestHandles = (sourceNode: Node<OperatorData>, targetNode: Node<OperatorData>) => {
+  const sourcePos = sourceNode.position;
+  const targetPos = targetNode.position;
+  
+  // Hitung selisih posisi
+  const deltaX = targetPos.x - sourcePos.x;
+  const deltaY = targetPos.y - sourcePos.y;
+  
+  // Tentukan arah dominan
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    // Horizontal - lebih besar pergerakan horizontal
+    if (deltaX > 0) {
+      // Target di sebelah KANAN source
+      return {
+        sourceHandle: 'right-source',  // Source pake handle kanan
+        targetHandle: 'left-target'     // Target pake handle kiri
+      };
+    } else {
+      // Target di sebelah KIRI source
+      return {
+        sourceHandle: 'left-source',    // Source pake handle kiri
+        targetHandle: 'right-target'    // Target pake handle kanan
+      };
+    }
+  } else {
+    // Vertical - lebih besar pergerakan vertikal
+    if (deltaY > 0) {
+      // Target di BAWAH source
+      return {
+        sourceHandle: 'bottom-source',  // Source pake handle bawah
+        targetHandle: 'top-target'      // Target pake handle atas
+      };
+    } else {
+      // Target di ATAS source
+      return {
+        sourceHandle: 'top-source',     // Source pake handle atas
+        targetHandle: 'bottom-target'   // Target pake handle bawah
+      };
+    }
+  }
 };
 
 export const useStore = create<FlowState>((set, get) => ({
@@ -153,14 +235,13 @@ export const useStore = create<FlowState>((set, get) => ({
     const { nodes } = get();
     const newNodes = applyNodeChanges(changes, nodes);
     
-    // Check if there's a meaningful change (position, etc)
     const hasPositionChange = changes.some(change => change.type === 'position' || change.type === 'dimensions');
     
     set({ nodes: newNodes });
     
-    // Push to history for significant changes (debounce in the component)
+    // Jika ada perubahan posisi, update koneksi operator
     if (hasPositionChange) {
-      // We'll let the component handle debounced history pushes
+      get().updateOperatorConnections();
     }
   },
 
@@ -172,15 +253,66 @@ export const useStore = create<FlowState>((set, get) => ({
   },
 
   onConnect: (connection: Connection) => {
-    const { edges, pushToHistory } = get();
-    const newEdges = addEdge({
-      ...connection,
-      type: 'smoothstep',
-      animated: false,
-      style: { stroke: '#1e293b', strokeWidth: 2 },
-    }, edges);
-    set({ edges: newEdges });
-    pushToHistory('Connection created');
+    const { edges, nodes, pushToHistory } = get();
+    
+    // Cek source dan target nodes
+    const sourceNode = nodes.find(n => n.id === connection.source);
+    const targetNode = nodes.find(n => n.id === connection.target);
+    
+    // Jika kedua node adalah operator, cek apakah mereka memiliki ID yang sama
+    if (sourceNode?.type === 'operatorNode' && targetNode?.type === 'operatorNode') {
+      const sourceData = sourceNode.data as OperatorData;
+      const targetData = targetNode.data as OperatorData;
+      
+      // Jika ID berbeda, tolak koneksi
+      if (sourceData.id !== targetData.id) {
+        console.warn('Cannot connect operators with different IDs');
+        return;
+      }
+      
+      // Jika ID sama, izinkan koneksi manual
+      // Tapi tetap gunakan nearest handle jika tidak ditentukan
+      let sourceHandle = connection.sourceHandle;
+      let targetHandle = connection.targetHandle;
+      
+      // Jika handle tidak ditentukan (koneksi dari panel), gunakan nearest
+      if (!sourceHandle || !targetHandle) {
+        const handles = getNearestHandles(
+          sourceNode as Node<OperatorData>, 
+          targetNode as Node<OperatorData>
+        );
+        sourceHandle = handles.sourceHandle;
+        targetHandle = handles.targetHandle;
+      }
+      
+      const newEdges = addEdge({
+        ...connection,
+        sourceHandle,
+        targetHandle,
+        type: 'smoothstep',
+        animated: false,
+        style: { stroke: '#a855f7', strokeWidth: 2 },
+        data: { 
+          operatorId: sourceData.id,
+          sourceProcess: sourceData.process,
+          targetProcess: targetData.process
+        },
+      }, edges);
+      
+      set({ edges: newEdges });
+      pushToHistory('Manual operator connection created');
+    } else {
+      // Untuk koneksi yang melibatkan machine, gunakan style default
+      const newEdges = addEdge({
+        ...connection,
+        type: 'smoothstep',
+        animated: false,
+        style: { stroke: '#1e293b', strokeWidth: 2 },
+      }, edges);
+      
+      set({ edges: newEdges });
+      pushToHistory('Connection created');
+    }
   },
 
   setSelectedNodeId: (id: string | null) => {
@@ -231,43 +363,43 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory(`Saved template: ${template.name}`);
   },
   
- deleteTemplate: (templateId: string) => {
-  set(state => {
-    const newTemplates = state.templates.filter(t => t.id !== templateId);
-    
-    // Remove from any nodes using this template
-    const newNodeTemplates = { ...state.nodeTemplates };
-    Object.keys(newNodeTemplates).forEach(nodeId => {
-      if (newNodeTemplates[nodeId] === templateId) {
-        delete newNodeTemplates[nodeId];
+  deleteTemplate: (templateId: string) => {
+    set(state => {
+      const newTemplates = state.templates.filter(t => t.id !== templateId);
+      
+      // Remove from any nodes using this template
+      const newNodeTemplates = { ...state.nodeTemplates };
+      Object.keys(newNodeTemplates).forEach(nodeId => {
+        if (newNodeTemplates[nodeId] === templateId) {
+          delete newNodeTemplates[nodeId];
+        }
+      });
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+        
+        // Also update the main save to reflect node template changes
+        const flowData = {
+          nodes: state.nodes,
+          edges: state.edges,
+          nodeTemplates: newNodeTemplates,
+          timestamp: new Date().toISOString(),
+          version: '1.1',
+        };
+        localStorage.setItem('flow2d-save', JSON.stringify(flowData));
+      } catch (error) {
+        console.error('Failed to save templates:', error);
       }
+      
+      return { 
+        templates: newTemplates,
+        nodeTemplates: newNodeTemplates
+      };
     });
     
-    // Save to localStorage
-    try {
-      localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
-      
-      // Also update the main save to reflect node template changes
-      const flowData = {
-        nodes: state.nodes,
-        edges: state.edges,
-        nodeTemplates: newNodeTemplates,
-        timestamp: new Date().toISOString(),
-        version: '1.1',
-      };
-      localStorage.setItem('flow2d-save', JSON.stringify(flowData));
-    } catch (error) {
-      console.error('Failed to save templates:', error);
-    }
-    
-    return { 
-      templates: newTemplates,
-      nodeTemplates: newNodeTemplates
-    };
-  });
-  
-  get().pushToHistory(`Deleted template`);
-},
+    get().pushToHistory(`Deleted template`);
+  },
   
   duplicateTemplate: (templateId: string) => {
     const { templates } = get();
@@ -338,56 +470,219 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory(`Added ${type} machine`);
   },
 
-updateNodeData: (nodeId: string, data: Partial<MachineData & { template?: MachineTemplate }>) => {
-  set({
-    nodes: get().nodes.map((node) =>
-      node.id === nodeId
-        ? { 
-            ...node, 
-            data: { 
-              ...node.data, 
-              ...data,
-              // Jika ada template, merge dengan template yang sudah ada
-              template: data.template 
-                ? { 
-                    ...(node.data as any).template, 
-                    ...data.template 
-                  }
-                : (node.data as any).template
-            } 
+  // Method baru: addOperator
+  addOperator: (position: { x: number; y: number }) => {
+    const { nodes } = get();
+    const operatorNodes = nodes.filter(n => n.type === 'operatorNode') as Node<OperatorData>[];
+    
+    const operatorData = createOperatorData(operatorNodes);
+    
+    const newNode: Node<OperatorData> = {
+      id: `operator-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: 'operatorNode',
+      position,
+      data: operatorData,
+    };
+
+    set({ nodes: [...nodes, newNode] });
+    
+    // Update koneksi otomatis setelah menambah operator
+    get().updateOperatorConnections();
+    get().pushToHistory(`Added operator with ID ${operatorData.id}, Process ${operatorData.process}`);
+  },
+
+  // Method baru: updateOperatorConnections - untuk auto-connect berdasarkan ID dan process dengan nearest handle
+  updateOperatorConnections: () => {
+    const { nodes, edges } = get();
+    
+    // Filter hanya operator nodes
+    const operatorNodes = nodes.filter(n => n.type === 'operatorNode') as Node<OperatorData>[];
+    
+    if (operatorNodes.length < 2) {
+      // Hapus semua operator edges jika kurang dari 2 operator
+      const nonOperatorEdges = edges.filter(edge => {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        return sourceNode?.type !== 'operatorNode' && targetNode?.type !== 'operatorNode';
+      });
+      set({ edges: nonOperatorEdges });
+      return;
+    }
+    
+    // Group operators by ID
+    const operatorsById: Record<number, Node<OperatorData>[]> = {};
+    
+    operatorNodes.forEach(node => {
+      const id = node.data.id;
+      if (!operatorsById[id]) {
+        operatorsById[id] = [];
+      }
+      operatorsById[id].push(node);
+    });
+    
+    // Hapus semua edges yang terkait operator (yang bukan machine)
+    const nonOperatorEdges = edges.filter(edge => {
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      // Keep edges that involve machines
+      return sourceNode?.type !== 'operatorNode' && targetNode?.type !== 'operatorNode';
+    });
+    
+    // Buat edges baru berdasarkan grouping ID dengan nearest handle
+    const newOperatorEdges: Edge[] = [];
+    
+    Object.entries(operatorsById).forEach(([idStr, nodesWithSameId]) => {
+      const id = parseInt(idStr);
+      
+      if (nodesWithSameId.length >= 2) {
+        // Sort by process number (ascending)
+        const sortedNodes = [...nodesWithSameId].sort((a, b) => a.data.process - b.data.process);
+        
+        // Connect in order: smallest process to next, and last back to first (cycle)
+        for (let i = 0; i < sortedNodes.length; i++) {
+          const sourceNode = sortedNodes[i];
+          const targetNode = sortedNodes[(i + 1) % sortedNodes.length]; // Cycle back to first
+          
+          // Dapatkan handle terdekat berdasarkan posisi
+          const handles = getNearestHandles(sourceNode, targetNode);
+          
+          const edgeId = `operator-edge-${id}-${sourceNode.data.process}-${targetNode.data.process}-${Date.now()}-${i}`;
+          
+          // Cek apakah edge sudah ada
+          const edgeExists = nonOperatorEdges.some(e => 
+            e.source === sourceNode.id && e.target === targetNode.id
+          ) || newOperatorEdges.some(e => 
+            e.source === sourceNode.id && e.target === targetNode.id
+          );
+          
+          if (!edgeExists) {
+            newOperatorEdges.push({
+              id: edgeId,
+              source: sourceNode.id,
+              target: targetNode.id,
+              sourceHandle: handles.sourceHandle,
+              targetHandle: handles.targetHandle,
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: '#a855f7', strokeWidth: 2, strokeDasharray: '5,5' },
+              data: { 
+                operatorId: id,
+                sourceProcess: sourceNode.data.process,
+                targetProcess: targetNode.data.process
+              },
+            });
           }
-        : node
-    ),
-  });
-  
-  // Jika ada perubahan template, push ke history
-  if (data.template) {
-    get().pushToHistory('Updated machine template');
-  } else {
-    get().pushToHistory('Updated machine properties');
-  }
-},
+        }
+      }
+    });
+    
+    // Gabungkan edges yang ada (non-operator) dengan edges baru
+    set({ edges: [...nonOperatorEdges, ...newOperatorEdges] });
+  },
+
+  updateNodeData: (nodeId: string, data: Partial<NodeData>) => {
+    const { nodes } = get();
+    const node = nodes.find(n => n.id === nodeId);
+    
+    if (!node) return;
+    
+    // Jika node adalah operator dan data yang diubah adalah id atau process
+    if (node?.type === 'operatorNode' && (data.hasOwnProperty('id') || data.hasOwnProperty('process'))) {
+      const currentData = node.data as OperatorData;
+      const newId = (data as Partial<OperatorData>).id ?? currentData.id;
+      const newProcess = (data as Partial<OperatorData>).process ?? currentData.process;
+      
+      // Validasi: jika mengubah process, pastikan tidak duplicate untuk ID yang sama
+      if (data.hasOwnProperty('process')) {
+        const operatorsWithSameId = nodes.filter(n => 
+          n.type === 'operatorNode' && 
+          n.id !== nodeId && 
+          (n.data as OperatorData).id === newId
+        ) as Node<OperatorData>[];
+        
+        const isDuplicate = operatorsWithSameId.some(n => n.data.process === newProcess);
+        
+        if (isDuplicate) {
+          console.warn(`Process ${newProcess} already used for ID ${newId}`);
+          return; // Batalkan update
+        }
+      }
+      
+      // Update label jika id atau process berubah
+      const updatedData = {
+        ...currentData,
+        ...data,
+        label: `Operator ${newId}.${newProcess}`
+      };
+      
+      set({
+        nodes: nodes.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: updatedData }
+            : n
+        ),
+      });
+      
+      get().updateOperatorConnections();
+    } else {
+      // Untuk machine node atau update biasa
+      set({
+        nodes: nodes.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...n.data, ...data } }
+            : n
+        ),
+      });
+    }
+    
+    get().pushToHistory('Updated node properties');
+  },
 
   deleteNode: (nodeId: string) => {
+    const { nodes, edges } = get();
+    
+    // Cek apakah node yang dihapus adalah operator
+    const nodeToDelete = nodes.find(n => n.id === nodeId);
+    
     set({
-      nodes: get().nodes.filter((node) => node.id !== nodeId),
-      edges: get().edges.filter(
+      nodes: nodes.filter((node) => node.id !== nodeId),
+      edges: edges.filter(
         (edge) => edge.source !== nodeId && edge.target !== nodeId
       ),
       selectedNodeId: null,
     });
-    get().pushToHistory('Deleted machine');
+    
+    // Jika yang dihapus adalah operator, update koneksi operator lainnya
+    if (nodeToDelete?.type === 'operatorNode') {
+      get().updateOperatorConnections();
+    }
+    
+    get().pushToHistory('Deleted node');
+  },
+
+  // Method baru: deleteEdge
+  deleteEdge: (edgeId: string) => {
+    const { edges, pushToHistory } = get();
+    const newEdges = edges.filter(edge => edge.id !== edgeId);
+    set({ edges: newEdges });
+    pushToHistory('Edge deleted');
   },
 
   updateThroughput: () => {
     set({
       nodes: get().nodes.map((node) => {
-        if (node.data.status === 'active') {
+        const isMachineNode = (node: Node<NodeData>): node is Node<MachineData> => {
+          return node.type === 'machineNode' || node.type === 'shapeMachineNode';
+        };
+
+        // Only update machine nodes, not operator nodes
+        if (isMachineNode(node) && node.data.status === 'active') {
+          const machineData = node.data as MachineData;
           const variation = Math.floor(Math.random() * 10) - 3;
-          const newThroughput = Math.max(0, Math.min(100, node.data.throughput + variation));
+          const newThroughput = Math.max(0, Math.min(100, machineData.throughput + variation));
           return {
             ...node,
-            data: { ...node.data, throughput: newThroughput },
+            data: { ...machineData, throughput: newThroughput },
           };
         }
         return node;
@@ -439,7 +734,7 @@ updateNodeData: (nodeId: string, data: Partial<MachineData & { template?: Machin
         edges: get().edges,
         nodeTemplates: get().nodeTemplates,
         timestamp: new Date().toISOString(),
-        version: '1.1', // Update version
+        version: '1.3', // Update version for nearest handle support
       };
       
       localStorage.setItem('flow2d-save', JSON.stringify(flowData));
@@ -473,6 +768,11 @@ updateNodeData: (nodeId: string, data: Partial<MachineData & { template?: Machin
         // Reset history with loaded state
         get().pushToHistory('Loaded from storage');
         
+        // Update operator connections after loading
+        setTimeout(() => {
+          get().updateOperatorConnections();
+        }, 100);
+        
         return true;
       }
       return false;
@@ -489,7 +789,7 @@ updateNodeData: (nodeId: string, data: Partial<MachineData & { template?: Machin
         edges: get().edges,
         nodeTemplates: get().nodeTemplates,
         timestamp: new Date().toISOString(),
-        version: '1.1',
+        version: '1.3',
         appName: 'Flow2D Machine Schema',
       };
       
@@ -530,6 +830,11 @@ updateNodeData: (nodeId: string, data: Partial<MachineData & { template?: Machin
             // Reset history with imported state
             get().pushToHistory('Imported from file');
             
+            // Update operator connections after import
+            setTimeout(() => {
+              get().updateOperatorConnections();
+            }, 100);
+            
             resolve();
           } else {
             reject(new Error('Invalid file format'));
@@ -545,9 +850,8 @@ updateNodeData: (nodeId: string, data: Partial<MachineData & { template?: Machin
   },
 
   clearAll: () => {
-    // Hapus window.confirm, biarkan component yang handle konfirmasi
     set({ nodes: [], edges: [], selectedNodeId: null, nodeTemplates: {} });
-    get().pushToHistory('Cleared all machines');
+    get().pushToHistory('Cleared all');
   },
 }));
 

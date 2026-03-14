@@ -7,8 +7,9 @@ import ReactFlow, {
   Panel,
 } from 'reactflow';
 import MachineNode from './MachineNode';
+import OperatorNode from './OperatorNode';
 import SaveLoadPanel from './SaveLoadPanel';
-import UndoRedoIndicator from './UndoRedoIndicator'; // Import baru
+import UndoRedoIndicator from './UndoRedoIndicator';
 import { useStore } from '@/store/useStore';
 import { Settings, Info } from 'lucide-react';
 import ViewModeToggle from './ViewModeToggle';
@@ -17,6 +18,7 @@ import ShapeMachineNode from './ShapeMachineNode';
 const nodeTypes = {
   machineNode: MachineNode,
   shapeMachineNode: ShapeMachineNode,
+  operatorNode: OperatorNode,
 };
 
 const FlowCanvas = () => {
