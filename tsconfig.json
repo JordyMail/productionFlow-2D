@@ -32,6 +32,8 @@
       "@shared/*": ["./shared/*"],
       "@/shared/*": ["./shared/*"]
     }
+    // sekarang saya ingin agar node yang terhubung adalah node yang terdekat dari sisi mesin
+    // contoh: jika operator a di sebelah kanan dan operator b di sebelah kiri, maka node operator a akan terhubung dengan node operaotr b menggunakan node titik node terdekat
   },
   "include": [
     "client/**/*",
