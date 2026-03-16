@@ -14,11 +14,17 @@ import { useStore } from '@/store/useStore';
 import { Settings, Info } from 'lucide-react';
 import ViewModeToggle from './ViewModeToggle';
 import ShapeMachineNode from './ShapeMachineNode';
+import CustomEdge from './CustomEdge';
 
 const nodeTypes = {
   machineNode: MachineNode,
   shapeMachineNode: ShapeMachineNode,
   operatorNode: OperatorNode,
+};
+
+const edgeTypes = {
+  custom: CustomEdge,
+  // ... edge types lainnya
 };
 
 const FlowCanvas = () => {
