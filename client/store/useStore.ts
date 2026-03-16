@@ -14,6 +14,7 @@ import {
   applyNodeChanges,
   applyEdgeChanges
 } from 'reactflow';
+import { MarkerType } from 'reactflow';
 
 export type MachineStatus = 'active' | 'idle' | 'warning' | 'down';
 
@@ -113,31 +114,12 @@ const createMachineData = (type: string): MachineData => {
   };
 };
 
-// Helper untuk generate operator data
-const createOperatorData = (existingOperators: Node<OperatorData>[]): OperatorData => {
-  // Cari ID terbesar untuk menentukan ID baru
-  const maxId = existingOperators.length > 0 
-    ? Math.max(...existingOperators.map(n => n.data.id)) 
-    : 0;
-  
-  const newId = maxId + 1;
-  
-  // Cari process number yang tersedia untuk ID ini
-  const operatorsWithSameId = existingOperators.filter(n => n.data.id === newId);
-  const usedProcesses = operatorsWithSameId.map(n => n.data.process);
-  
-  // Cari process number terkecil yang belum digunakan (1-999)
-  let newProcess = 1;
-  while (usedProcesses.includes(newProcess)) {
-    newProcess++;
-    if (newProcess > 999) newProcess = 1; // Safety, loop around
-  }
-  
-  return {
-    id: newId,
-    process: newProcess,
-    label: `Operator ${newId}.${newProcess}`,
+const manualAddEdge = (edgeParams: any, existingEdges: Edge[]) => {
+  const newEdge: Edge = {
+    id: `edge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    ...edgeParams,
   };
+  return [...existingEdges, newEdge];
 };
 
 // Helper function untuk menentukan handle terdekat antara dua node
@@ -285,13 +267,22 @@ export const useStore = create<FlowState>((set, get) => ({
         targetHandle = handles.targetHandle;
       }
       
-      const newEdges = addEdge({
+      const newEdges = manualAddEdge({
         ...connection,
         sourceHandle,
         targetHandle,
         type: 'smoothstep',
-        animated: false,
-        style: { stroke: '#a855f7', strokeWidth: 2 },
+        animated: true,
+        style: { 
+          stroke: '#a855f7', 
+          strokeWidth: 2,
+        },
+        markerEnd: {
+          type: 'arrow',
+          color: '#a855f7',
+          width: 15,
+          height: 15,
+        },
         data: { 
           operatorId: sourceData.id,
           sourceProcess: sourceData.process,
@@ -302,12 +293,21 @@ export const useStore = create<FlowState>((set, get) => ({
       set({ edges: newEdges });
       pushToHistory('Manual operator connection created');
     } else {
-      // Untuk koneksi yang melibatkan machine, gunakan style default
-      const newEdges = addEdge({
+      // Untuk koneksi yang melibatkan machine, gunakan style default dengan arrow
+      const newEdges = manualAddEdge({
         ...connection,
         type: 'smoothstep',
         animated: false,
-        style: { stroke: '#1e293b', strokeWidth: 2 },
+        style: { 
+          stroke: '#1e293b', 
+          strokeWidth: 2 
+        },
+        markerEnd: {
+          type: 'arrowclosed',
+          color: '#1e293b',
+          width: 12,
+          height: 12,
+        },
       }, edges);
       
       set({ edges: newEdges });
@@ -475,7 +475,7 @@ export const useStore = create<FlowState>((set, get) => ({
     const { nodes } = get();
     const operatorNodes = nodes.filter(n => n.type === 'operatorNode') as Node<OperatorData>[];
     
-    const operatorData = createOperatorData(operatorNodes);
+    const operatorData = { id: null, process: null, label: null } as OperatorData;// null data karena akan diisi setelah validasi ID dan process
     
     const newNode: Node<OperatorData> = {
       id: `operator-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -564,7 +564,17 @@ export const useStore = create<FlowState>((set, get) => ({
               targetHandle: handles.targetHandle,
               type: 'smoothstep',
               animated: true,
-              style: { stroke: '#a855f7', strokeWidth: 2, strokeDasharray: '5,5' },
+              style: { 
+                stroke: '#a855f7', 
+                strokeWidth: 2,
+                strokeDasharray: '5,5' // Hanya untuk operator edges
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed ,
+                color: '#a855f7',
+                width: 15,
+                height: 15,
+              },
               data: { 
                 operatorId: id,
                 sourceProcess: sourceNode.data.process,

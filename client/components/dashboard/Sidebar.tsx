@@ -88,7 +88,7 @@ const Sidebar = () => {
       </div>
 
       {/* Stats Summary */}
-      <div className="p-4 grid grid-cols-4 gap-2 bg-slate-50 border-b border-slate-100">
+      <div className="p-4 grid grid-cols-2 gap-2 bg-slate-50 border-b border-slate-100">
         {/* Active Machines */}
         <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
           <div className="flex items-center gap-1.5 text-green-600 mb-1">
@@ -96,7 +96,6 @@ const Sidebar = () => {
             <span className="text-[8px] font-bold uppercase">Active</span>
           </div>
           <span className="text-lg font-bold text-slate-700">{activeCount}</span>
-          <span className="text-[8px] text-slate-400 block">/{totalMachines}</span>
         </div>
 
         {/* Warning Machines */}
@@ -106,7 +105,6 @@ const Sidebar = () => {
             <span className="text-[8px] font-bold uppercase">Warning</span>
           </div>
           <span className="text-lg font-bold text-slate-700">{warningCount}</span>
-          <span className="text-[8px] text-slate-400 block">/{totalMachines}</span>
         </div>
 
         {/* Down/Critical Machines */}
@@ -116,7 +114,6 @@ const Sidebar = () => {
             <span className="text-[8px] font-bold uppercase">Down</span>
           </div>
           <span className="text-lg font-bold text-slate-700">{downCount}</span>
-          <span className="text-[8px] text-slate-400 block">/{totalMachines}</span>
         </div>
 
         {/* Operators */}
@@ -126,7 +123,6 @@ const Sidebar = () => {
             <span className="text-[8px] font-bold uppercase">Operators</span>
           </div>
           <span className="text-lg font-bold text-slate-700">{operatorCount}</span>
-          <span className="text-[8px] text-slate-400 block">total</span>
         </div>
       </div>
 
