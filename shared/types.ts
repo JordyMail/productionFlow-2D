@@ -4,6 +4,8 @@
 export type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'line' | 'text';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type FrameType = 'rectangle' | 'rectangle2x1' | 'rectangle1x2' | 'circle' | 'triangle';
+export type HandlePosition = 'top' | 'bottom' | 'left' | 'right';
+export type HandleType = 'source' | 'target';
 
 export interface BaseShape {
   id: string;
@@ -167,6 +169,8 @@ export interface OperatorData {
   process: number;      // Process order (harus unik per ID)
   label?: string;       // Label optional
   position?: { x: number; y: number };
+  handles?: HandleConfig;
+  color?: string;
 }
 
 // Update MachineData jika perlu
@@ -178,6 +182,7 @@ export interface MachineData {
   lastMaintenance: string;
   template?: MachineTemplate;
   frameRotation?: number;
+  handles?: HandleConfig;
 }
 
 // Union type untuk semua node data
@@ -188,3 +193,17 @@ export const NODE_TYPES = {
   MACHINE: 'machineNode',
   OPERATOR: 'operatorNode',
 } as const;
+
+export const DEFAULT_HANDLE_CONFIG: HandleConfig = {
+  top: true,
+  bottom: true,
+  left: true,
+  right: true
+};
+
+export interface HandleConfig {
+  top: boolean;
+  bottom: boolean;
+  left: boolean;
+  right: boolean;
+}

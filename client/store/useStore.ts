@@ -1,6 +1,15 @@
 // client/store/useStore.ts
 import { create } from 'zustand';
-import { MachineTemplate, ViewMode, TemplatesStore, OperatorData, NODE_TYPES } from '@/shared/types';
+import { 
+  MachineTemplate, 
+  ViewMode, 
+  TemplatesStore, 
+  OperatorData, 
+  NODE_TYPES,
+  HandleConfig,        // Tambahkan import
+  HandlePosition,       // Tambahkan import
+  DEFAULT_HANDLE_CONFIG // Tambahkan import
+} from '@/shared/types';
 import { 
   Connection, 
   Edge, 
@@ -26,6 +35,7 @@ export interface MachineData {
   lastMaintenance: string;
   template?: MachineTemplate;
   frameRotation?: number;
+  handles?: HandleConfig; // Tambahkan
 }
 
 // Union type untuk semua node data
@@ -77,6 +87,10 @@ interface FlowState {
   deleteNode: (nodeId: string) => void;
   updateThroughput: () => void;
   
+  // Handle management methods - TAMBAHKAN
+  toggleHandle: (nodeId: string, position: HandlePosition) => void;
+  getActiveHandles: (nodeId: string) => HandlePosition[];
+  
   // Operator specific methods
   updateOperatorConnections: () => void;
   
@@ -98,6 +112,29 @@ interface FlowState {
   deleteEdge: (edgeId: string) => void;
 }
 
+// Helper untuk generate warna unik berdasarkan ID operator
+const generateOperatorColor = (id: number): string => {
+  // Menggunakan golden angle approximation untuk distribusi warna yang merata
+  const hue = (id * 137.5) % 360;
+  return `hsl(${hue}, 70%, 60%)`;
+};
+
+// Helper untuk mendapatkan handle config default - GUNAKAN DARI IMPORT
+const getDefaultHandleConfig = (): HandleConfig => ({
+  top: true,
+  bottom: true,
+  left: true,
+  right: true
+});
+
+// Helper untuk mendapatkan active handles dari config
+const getActiveHandlesFromConfig = (config?: HandleConfig): HandlePosition[] => {
+  if (!config) return ['top', 'bottom', 'left', 'right']; // default semua aktif
+  return (['top', 'bottom', 'left', 'right'] as HandlePosition[]).filter(
+    pos => config[pos]
+  );
+};
+
 // Helper function to generate initial machine data
 const createMachineData = (type: string): MachineData => {
   const baseLabel = type || 'New Machine';
@@ -111,7 +148,19 @@ const createMachineData = (type: string): MachineData => {
       day: 'numeric', 
       year: 'numeric' 
     }),
+    handles: getDefaultHandleConfig(), // Tambahkan default handles
   };
+};
+
+const createOperatorData = (): OperatorData => {
+  // Ini akan diisi setelah validasi ID dan process
+  return {
+    id: null,
+    process: null,
+    label: null,
+    handles: getDefaultHandleConfig(), // Default semua aktif
+    color: null // Akan diisi saat ID ditetapkan
+  } as OperatorData;
 };
 
 const manualAddEdge = (edgeParams: any, existingEdges: Edge[]) => {
@@ -122,8 +171,13 @@ const manualAddEdge = (edgeParams: any, existingEdges: Edge[]) => {
   return [...existingEdges, newEdge];
 };
 
-// Helper function untuk menentukan handle terdekat antara dua node
-const getNearestHandles = (sourceNode: Node<OperatorData>, targetNode: Node<OperatorData>) => {
+// Helper function untuk menentukan handle terdekat antara dua node - DIMODIFIKASI
+const getNearestHandles = (
+  sourceNode: Node<OperatorData | MachineData>, 
+  targetNode: Node<OperatorData | MachineData>,
+  sourceActiveHandles: HandlePosition[] = ['top', 'bottom', 'left', 'right'],
+  targetActiveHandles: HandlePosition[] = ['top', 'bottom', 'left', 'right']
+) => {
   const sourcePos = sourceNode.position;
   const targetPos = targetNode.position;
   
@@ -132,37 +186,47 @@ const getNearestHandles = (sourceNode: Node<OperatorData>, targetNode: Node<Oper
   const deltaY = targetPos.y - sourcePos.y;
   
   // Tentukan arah dominan
-  if (Math.abs(deltaX) > Math.abs(deltaY)) {
-    // Horizontal - lebih besar pergerakan horizontal
+  const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+  
+  // Urutan prioritas handle berdasarkan arah
+  let preferredSourcePositions: HandlePosition[] = [];
+  let preferredTargetPositions: HandlePosition[] = [];
+  
+  if (isHorizontal) {
     if (deltaX > 0) {
-      // Target di sebelah KANAN source
-      return {
-        sourceHandle: 'right-source',  // Source pake handle kanan
-        targetHandle: 'left-target'     // Target pake handle kiri
-      };
+      // Target di KANAN
+      preferredSourcePositions = ['right', 'top', 'bottom', 'left'];
+      preferredTargetPositions = ['left', 'top', 'bottom', 'right'];
     } else {
-      // Target di sebelah KIRI source
-      return {
-        sourceHandle: 'left-source',    // Source pake handle kiri
-        targetHandle: 'right-target'    // Target pake handle kanan
-      };
+      // Target di KIRI
+      preferredSourcePositions = ['left', 'top', 'bottom', 'right'];
+      preferredTargetPositions = ['right', 'top', 'bottom', 'left'];
     }
   } else {
-    // Vertical - lebih besar pergerakan vertikal
     if (deltaY > 0) {
-      // Target di BAWAH source
-      return {
-        sourceHandle: 'bottom-source',  // Source pake handle bawah
-        targetHandle: 'top-target'      // Target pake handle atas
-      };
+      // Target di BAWAH
+      preferredSourcePositions = ['bottom', 'left', 'right', 'top'];
+      preferredTargetPositions = ['top', 'left', 'right', 'bottom'];
     } else {
-      // Target di ATAS source
-      return {
-        sourceHandle: 'top-source',     // Source pake handle atas
-        targetHandle: 'bottom-target'   // Target pake handle bawah
-      };
+      // Target di ATAS
+      preferredSourcePositions = ['top', 'left', 'right', 'bottom'];
+      preferredTargetPositions = ['bottom', 'left', 'right', 'top'];
     }
   }
+  
+  // Pilih handle pertama yang aktif
+  const sourceHandle = preferredSourcePositions.find(pos => 
+    sourceActiveHandles.includes(pos)
+  ) || sourceActiveHandles[0]; // fallback ke handle aktif pertama
+  
+  const targetHandle = preferredTargetPositions.find(pos => 
+    targetActiveHandles.includes(pos)
+  ) || targetActiveHandles[0]; // fallback ke handle aktif pertama
+  
+  return {
+    sourceHandle: `${sourceHandle}-source`,
+    targetHandle: `${targetHandle}-target`
+  };
 };
 
 export const useStore = create<FlowState>((set, get) => ({
@@ -241,6 +305,18 @@ export const useStore = create<FlowState>((set, get) => ({
     const sourceNode = nodes.find(n => n.id === connection.source);
     const targetNode = nodes.find(n => n.id === connection.target);
     
+    if (!sourceNode || !targetNode) return;
+    
+    // Dapatkan active handles untuk kedua node
+    const sourceActiveHandles = get().getActiveHandles(sourceNode.id);
+    const targetActiveHandles = get().getActiveHandles(targetNode.id);
+    
+    // Jika tidak ada active handles di salah satu node, tolak koneksi
+    if (sourceActiveHandles.length === 0 || targetActiveHandles.length === 0) {
+      console.warn('Cannot connect: Node has no active handles');
+      return;
+    }
+    
     // Jika kedua node adalah operator, cek apakah mereka memiliki ID yang sama
     if (sourceNode?.type === 'operatorNode' && targetNode?.type === 'operatorNode') {
       const sourceData = sourceNode.data as OperatorData;
@@ -253,18 +329,28 @@ export const useStore = create<FlowState>((set, get) => ({
       }
       
       // Jika ID sama, izinkan koneksi manual
-      // Tapi tetap gunakan nearest handle jika tidak ditentukan
       let sourceHandle = connection.sourceHandle;
       let targetHandle = connection.targetHandle;
       
-      // Jika handle tidak ditentukan (koneksi dari panel), gunakan nearest
+      // Jika handle tidak ditentukan (koneksi dari panel), gunakan nearest dengan active handles
       if (!sourceHandle || !targetHandle) {
         const handles = getNearestHandles(
           sourceNode as Node<OperatorData>, 
-          targetNode as Node<OperatorData>
+          targetNode as Node<OperatorData>,
+          sourceActiveHandles,
+          targetActiveHandles
         );
         sourceHandle = handles.sourceHandle;
         targetHandle = handles.targetHandle;
+      } else {
+        // Validasi handle yang dipilih aktif
+        const sourcePos = sourceHandle.split('-')[0] as HandlePosition;
+        const targetPos = targetHandle.split('-')[0] as HandlePosition;
+        
+        if (!sourceActiveHandles.includes(sourcePos) || !targetActiveHandles.includes(targetPos)) {
+          console.warn('Selected handle is not active');
+          return;
+        }
       }
       
       const newEdges = manualAddEdge({
@@ -274,12 +360,12 @@ export const useStore = create<FlowState>((set, get) => ({
         type: 'smoothstep',
         animated: true,
         style: { 
-          stroke: '#a855f7', 
+          stroke: sourceData.color || generateOperatorColor(sourceData.id), 
           strokeWidth: 2,
         },
         markerEnd: {
           type: 'arrow',
-          color: '#a855f7',
+          color: sourceData.color || generateOperatorColor(sourceData.id),
           width: 15,
           height: 15,
         },
@@ -293,9 +379,34 @@ export const useStore = create<FlowState>((set, get) => ({
       set({ edges: newEdges });
       pushToHistory('Manual operator connection created');
     } else {
-      // Untuk koneksi yang melibatkan machine, gunakan style default dengan arrow
+      // Untuk koneksi yang melibatkan machine, validasi handles
+      let sourceHandle = connection.sourceHandle;
+      let targetHandle = connection.targetHandle;
+      
+      if (!sourceHandle || !targetHandle) {
+        const handles = getNearestHandles(
+          sourceNode, 
+          targetNode,
+          sourceActiveHandles,
+          targetActiveHandles
+        );
+        sourceHandle = handles.sourceHandle;
+        targetHandle = handles.targetHandle;
+      } else {
+        // Validasi handle yang dipilih aktif
+        const sourcePos = sourceHandle.split('-')[0] as HandlePosition;
+        const targetPos = targetHandle.split('-')[0] as HandlePosition;
+        
+        if (!sourceActiveHandles.includes(sourcePos) || !targetActiveHandles.includes(targetPos)) {
+          console.warn('Selected handle is not active');
+          return;
+        }
+      }
+      
       const newEdges = manualAddEdge({
         ...connection,
+        sourceHandle,
+        targetHandle,
         type: 'smoothstep',
         animated: false,
         style: { 
@@ -458,6 +569,44 @@ export const useStore = create<FlowState>((set, get) => ({
     return templates.find(t => t.id === templateId);
   },
   
+  // TAMBAHKAN METHOD toggleHandle
+  toggleHandle: (nodeId: string, position: HandlePosition) => {
+    const { nodes } = get();
+    const node = nodes.find(n => n.id === nodeId);
+    
+    if (!node) return;
+    
+    const currentHandles = (node.data as any).handles || getDefaultHandleConfig();
+    const newHandles = {
+      ...currentHandles,
+      [position]: !currentHandles[position]
+    };
+    
+    // Update node data
+    set({
+      nodes: nodes.map(n =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, handles: newHandles } }
+          : n
+      )
+    });
+    
+    // Update koneksi yang terkena dampak
+    get().updateOperatorConnections();
+    get().pushToHistory(`Toggled handle ${position}`);
+  },
+  
+  // TAMBAHKAN METHOD getActiveHandles
+  getActiveHandles: (nodeId: string) => {
+    const { nodes } = get();
+    const node = nodes.find(n => n.id === nodeId);
+    
+    if (!node) return [];
+    
+    const handles = (node.data as any).handles;
+    return getActiveHandlesFromConfig(handles);
+  },
+  
   addNode: (type: string, position: { x: number; y: number }) => {
     const newNode: Node<MachineData> = {
       id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -470,12 +619,12 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory(`Added ${type} machine`);
   },
 
-  // Method baru: addOperator
+  // Method: addOperator
   addOperator: (position: { x: number; y: number }) => {
     const { nodes } = get();
     const operatorNodes = nodes.filter(n => n.type === 'operatorNode') as Node<OperatorData>[];
     
-    const operatorData = { id: null, process: null, label: null } as OperatorData;// null data karena akan diisi setelah validasi ID dan process
+    const operatorData = createOperatorData();
     
     const newNode: Node<OperatorData> = {
       id: `operator-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -488,10 +637,10 @@ export const useStore = create<FlowState>((set, get) => ({
     
     // Update koneksi otomatis setelah menambah operator
     get().updateOperatorConnections();
-    get().pushToHistory(`Added operator with ID ${operatorData.id}, Process ${operatorData.process}`);
+    get().pushToHistory(`Added operator`);
   },
 
-  // Method baru: updateOperatorConnections - untuk auto-connect berdasarkan ID dan process dengan nearest handle
+  // Method: updateOperatorConnections - MODIFIKASI untuk handle aktif
   updateOperatorConnections: () => {
     const { nodes, edges } = get();
     
@@ -509,15 +658,31 @@ export const useStore = create<FlowState>((set, get) => ({
       return;
     }
     
+    // Pastikan setiap operator memiliki color berdasarkan ID
+    const nodesWithColor = operatorNodes.map(node => {
+      if (!node.data.color && node.data.id) {
+        node.data.color = generateOperatorColor(node.data.id);
+      }
+      return node;
+    });
+    
+    // Update nodes dengan color
+    set({ nodes: nodes.map(n => {
+      const updated = nodesWithColor.find(un => un.id === n.id);
+      return updated || n;
+    })});
+    
     // Group operators by ID
     const operatorsById: Record<number, Node<OperatorData>[]> = {};
     
-    operatorNodes.forEach(node => {
+    nodesWithColor.forEach(node => {
       const id = node.data.id;
-      if (!operatorsById[id]) {
+      if (id && !operatorsById[id]) {
         operatorsById[id] = [];
       }
-      operatorsById[id].push(node);
+      if (id) {
+        operatorsById[id].push(node);
+      }
     });
     
     // Hapus semua edges yang terkait operator (yang bukan machine)
@@ -528,7 +693,7 @@ export const useStore = create<FlowState>((set, get) => ({
       return sourceNode?.type !== 'operatorNode' && targetNode?.type !== 'operatorNode';
     });
     
-    // Buat edges baru berdasarkan grouping ID dengan nearest handle
+    // Buat edges baru berdasarkan grouping ID dengan nearest handle dan handle aktif
     const newOperatorEdges: Edge[] = [];
     
     Object.entries(operatorsById).forEach(([idStr, nodesWithSameId]) => {
@@ -543,8 +708,22 @@ export const useStore = create<FlowState>((set, get) => ({
           const sourceNode = sortedNodes[i];
           const targetNode = sortedNodes[(i + 1) % sortedNodes.length]; // Cycle back to first
           
-          // Dapatkan handle terdekat berdasarkan posisi
-          const handles = getNearestHandles(sourceNode, targetNode);
+          // Dapatkan active handles untuk kedua node
+          const sourceActiveHandles = get().getActiveHandles(sourceNode.id);
+          const targetActiveHandles = get().getActiveHandles(targetNode.id);
+          
+          // Jika salah satu node tidak memiliki active handles, skip koneksi ini
+          if (sourceActiveHandles.length === 0 || targetActiveHandles.length === 0) {
+            continue;
+          }
+          
+          // Dapatkan handle terdekat yang aktif
+          const handles = getNearestHandles(
+            sourceNode, 
+            targetNode,
+            sourceActiveHandles,
+            targetActiveHandles
+          );
           
           const edgeId = `operator-edge-${id}-${sourceNode.data.process}-${targetNode.data.process}-${Date.now()}-${i}`;
           
@@ -565,13 +744,13 @@ export const useStore = create<FlowState>((set, get) => ({
               type: 'smoothstep',
               animated: true,
               style: { 
-                stroke: '#a855f7', 
+                stroke: sourceNode.data.color || generateOperatorColor(id), 
                 strokeWidth: 2,
-                strokeDasharray: '5,5' // Hanya untuk operator edges
+                strokeDasharray: '5,5'
               },
               markerEnd: {
-                type: MarkerType.ArrowClosed ,
-                color: '#a855f7',
+                type: MarkerType.ArrowClosed,
+                color: sourceNode.data.color || generateOperatorColor(id),
                 width: 15,
                 height: 15,
               },
@@ -618,11 +797,15 @@ export const useStore = create<FlowState>((set, get) => ({
         }
       }
       
+      // Generate color jika id berubah
+      const newColor = newId ? generateOperatorColor(newId) : currentData.color;
+      
       // Update label jika id atau process berubah
       const updatedData = {
         ...currentData,
         ...data,
-        label: `Operator ${newId}.${newProcess}`
+        label: `Operator ${newId}.${newProcess}`,
+        color: newColor
       };
       
       set({
@@ -670,7 +853,7 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory('Deleted node');
   },
 
-  // Method baru: deleteEdge
+  // Method: deleteEdge
   deleteEdge: (edgeId: string) => {
     const { edges, pushToHistory } = get();
     const newEdges = edges.filter(edge => edge.id !== edgeId);
@@ -744,7 +927,7 @@ export const useStore = create<FlowState>((set, get) => ({
         edges: get().edges,
         nodeTemplates: get().nodeTemplates,
         timestamp: new Date().toISOString(),
-        version: '1.3', // Update version for nearest handle support
+        version: '1.4', // Update version untuk handle config
       };
       
       localStorage.setItem('flow2d-save', JSON.stringify(flowData));
@@ -768,8 +951,20 @@ export const useStore = create<FlowState>((set, get) => ({
       if (flowData.nodes && Array.isArray(flowData.nodes) && 
           flowData.edges && Array.isArray(flowData.edges)) {
         
+        // Migrasi data lama: tambahkan default handles jika belum ada
+        const migratedNodes = flowData.nodes.map(node => {
+          if (!node.data.handles) {
+            node.data.handles = getDefaultHandleConfig();
+          }
+          // Migrasi operator: tambahkan color jika belum ada dan ID tersedia
+          if (node.type === 'operatorNode' && node.data.id && !node.data.color) {
+            node.data.color = generateOperatorColor(node.data.id);
+          }
+          return node;
+        });
+        
         set({ 
-          nodes: flowData.nodes, 
+          nodes: migratedNodes, 
           edges: flowData.edges,
           nodeTemplates: flowData.nodeTemplates || {},
           lastSaved: new Date(flowData.timestamp).toLocaleString()
@@ -799,7 +994,7 @@ export const useStore = create<FlowState>((set, get) => ({
         edges: get().edges,
         nodeTemplates: get().nodeTemplates,
         timestamp: new Date().toISOString(),
-        version: '1.3',
+        version: '1.4',
         appName: 'Flow2D Machine Schema',
       };
       
@@ -830,8 +1025,20 @@ export const useStore = create<FlowState>((set, get) => ({
           if (flowData.nodes && Array.isArray(flowData.nodes) && 
               flowData.edges && Array.isArray(flowData.edges)) {
             
+            // Migrasi data lama: tambahkan default handles jika belum ada
+            const migratedNodes = flowData.nodes.map(node => {
+              if (!node.data.handles) {
+                node.data.handles = getDefaultHandleConfig();
+              }
+              // Migrasi operator: tambahkan color jika belum ada dan ID tersedia
+              if (node.type === 'operatorNode' && node.data.id && !node.data.color) {
+                node.data.color = generateOperatorColor(node.data.id);
+              }
+              return node;
+            });
+            
             set({ 
-              nodes: flowData.nodes, 
+              nodes: migratedNodes, 
               edges: flowData.edges,
               nodeTemplates: flowData.nodeTemplates || {},
               lastSaved: new Date(flowData.timestamp).toLocaleString()
