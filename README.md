@@ -17,3 +17,7 @@ TODO:
 - adding "viewer mode" in tab (default and shapes) for display purposes (developer can use it to visualize their machine for their own projecn)
 - adding editing shape for operator
 - testing get and push data from DB
+
+
+Email Me if you want to contribute...
+check my github profile
