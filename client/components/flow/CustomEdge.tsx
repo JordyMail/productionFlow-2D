@@ -23,7 +23,8 @@ const CustomEdge = ({
     targetPosition,
   });
 
-  const isOperatorEdge = style.stroke === '#a855f7';
+  const isOperatorEdge = data && data.operatorId;
+  const edgeColor = style.stroke as string || (isOperatorEdge ? '#a855f7' : '#1e293b');
 
   return (
     <>
@@ -38,7 +39,12 @@ const CustomEdge = ({
         <text>
           <textPath
             href={`#${id}`}
-            style={{ fontSize: 10, fill: '#a855f7' }}
+            style={{ 
+              fontSize: 10, 
+              fill: edgeColor,
+              fontWeight: 500,
+              textShadow: '0 1px 2px rgba(255,255,255,0.8)'
+            }}
             startOffset="50%"
             textAnchor="middle"
           >

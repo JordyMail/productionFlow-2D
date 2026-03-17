@@ -1,4 +1,5 @@
 // client/components/dashboard/PropertyPanel.tsx
+
 import React from 'react';
 import { useStore, MachineData, NodeData } from '@/store/useStore';
 import { 
@@ -14,11 +15,18 @@ import {
   User,
   Hash,
   ListOrdered,
-  AlertCircle
+  AlertCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { 
   Select, 
   SelectContent, 
@@ -30,7 +38,7 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import TemplateSelector from './TemplateSelector';
 import { Node } from 'reactflow';
-import { OperatorData } from '@/shared/types';
+import { OperatorData, HandlePosition, HandleConfig } from '@/shared/types';
 
 // Type guard untuk mengecek apakah node adalah operator node
 const isOperatorNode = (node: Node<NodeData>): node is Node<OperatorData> => {
@@ -65,10 +73,178 @@ const PropertyPanel = () => {
     nodeTemplates,
     getTemplateById,
     templates,
-    updateOperatorConnections
+    updateOperatorConnections,
+    toggleHandle,
+    getActiveHandles
   } = useStore();
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+
+  // Handler untuk toggle handle
+  const handleToggleHandle = (position: HandlePosition) => {
+    if (selectedNodeId) {
+      toggleHandle(selectedNodeId, position);
+    }
+  };
+
+  // Dapatkan status handle untuk node yang dipilih
+  const getHandleStatus = (position: HandlePosition): boolean => {
+    if (!selectedNode) return true;
+    const handles = (selectedNode.data as any).handles as HandleConfig | undefined;
+    return handles ? handles[position] : true;
+  };
+
+  // Render handle controls section
+  const renderHandleControls = () => {
+    if (!selectedNode) return null;
+
+    const isOperator = selectedNode.type === 'operatorNode';
+    const activeHandles = getActiveHandles(selectedNode.id);
+    const totalHandles = 4;
+    const activeCount = activeHandles.length;
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-slate-100">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1">
+            <ToggleRight size={14} />
+            Connection Handles
+          </Label>
+          <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 rounded-full text-slate-600">
+            {activeCount}/{totalHandles} Active
+          </span>
+        </div>
+
+        {/* Info jika semua handle mati */}
+        {activeCount === 0 && (
+          <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={14} className="text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-amber-700">No Active Handles</p>
+                <p className="text-[10px] text-amber-600">
+                  This {isOperator ? 'operator' : 'machine'} cannot connect to any node. Enable at least one handle to allow connections.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Grid toggle untuk 4 arah */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Top Handle */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2">
+              <ArrowUp size={16} className={cn(
+                "transition-colors",
+                getHandleStatus('top') ? "text-primary" : "text-slate-300"
+              )} />
+              <span className="text-xs font-medium text-slate-700">Top</span>
+            </div>
+            <Switch
+              checked={getHandleStatus('top')}
+              onCheckedChange={() => handleToggleHandle('top')}
+              className="scale-75"
+            />
+          </div>
+
+          {/* Bottom Handle */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2">
+              <ArrowDown size={16} className={cn(
+                "transition-colors",
+                getHandleStatus('bottom') ? "text-primary" : "text-slate-300"
+              )} />
+              <span className="text-xs font-medium text-slate-700">Bottom</span>
+            </div>
+            <Switch
+              checked={getHandleStatus('bottom')}
+              onCheckedChange={() => handleToggleHandle('bottom')}
+              className="scale-75"
+            />
+          </div>
+
+          {/* Left Handle */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2">
+              <ArrowLeft size={16} className={cn(
+                "transition-colors",
+                getHandleStatus('left') ? "text-primary" : "text-slate-300"
+              )} />
+              <span className="text-xs font-medium text-slate-700">Left</span>
+            </div>
+            <Switch
+              checked={getHandleStatus('left')}
+              onCheckedChange={() => handleToggleHandle('left')}
+              className="scale-75"
+            />
+          </div>
+
+          {/* Right Handle */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2">
+              <ArrowRight size={16} className={cn(
+                "transition-colors",
+                getHandleStatus('right') ? "text-primary" : "text-slate-300"
+              )} />
+              <span className="text-xs font-medium text-slate-700">Right</span>
+            </div>
+            <Switch
+              checked={getHandleStatus('right')}
+              onCheckedChange={() => handleToggleHandle('right')}
+              className="scale-75"
+            />
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-8 text-xs"
+            onClick={() => {
+              if (selectedNodeId) {
+                ['top', 'bottom', 'left', 'right'].forEach(pos => {
+                  if (!getHandleStatus(pos as HandlePosition)) {
+                    toggleHandle(selectedNodeId, pos as HandlePosition);
+                  }
+                });
+              }
+            }}
+          >
+            Enable All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-8 text-xs"
+            onClick={() => {
+              if (selectedNodeId) {
+                ['top', 'bottom', 'left', 'right'].forEach(pos => {
+                  if (getHandleStatus(pos as HandlePosition)) {
+                    toggleHandle(selectedNodeId, pos as HandlePosition);
+                  }
+                });
+              }
+            }}
+          >
+            Disable All
+          </Button>
+        </div>
+
+        {/* Informasi koneksi untuk operator */}
+        {isOperator && (
+          <div className="mt-2 p-2 bg-purple-50 rounded border border-purple-100">
+            <p className="text-[10px] text-purple-600">
+              <span className="font-medium">Active handles:</span>{' '}
+              {activeHandles.map(h => h.charAt(0).toUpperCase() + h.slice(1)).join(', ')}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (!selectedNode) {
     return (
@@ -224,6 +400,9 @@ const PropertyPanel = () => {
               </div>
             </div>
 
+            {/* Handle Controls */}
+            {renderHandleControls()}
+
             {/* Info panel about connections */}
             <div className="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
               <div className="flex items-center gap-2 mb-2">
@@ -247,6 +426,7 @@ const PropertyPanel = () => {
                         <div 
                           key={op.id} 
                           className="text-[10px] bg-white p-2 rounded border border-purple-100 flex justify-between items-center hover:bg-purple-50/50 transition-colors"
+                          style={{ borderLeftColor: op.data.color || '#a855f7', borderLeftWidth: '3px' }}
                         >
                           <span className="truncate max-w-[120px]">
                             {op.data.label || `Operator ${op.data.id}`}
@@ -278,7 +458,7 @@ const PropertyPanel = () => {
     );
   }
 
-  // Render untuk Machine (existing code dengan sedikit penyesuaian)
+  // Render untuk Machine
   if (isMachine && isMachineData(data)) {
     const machineData = data as MachineData;
     const currentTemplateId = nodeTemplates?.[selectedNode.id];
@@ -377,6 +557,9 @@ const PropertyPanel = () => {
               </div>
             </div>
           </div>
+
+          {/* Handle Controls */}
+          {renderHandleControls()}
 
           {/* Maintenance */}
           <div className="space-y-3 pt-4 border-t border-slate-100">
