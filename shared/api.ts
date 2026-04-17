@@ -6,6 +6,7 @@
 
 /**
  * Example response type for /api/demo
+ * You can replace this with your own types for your API responses
  */
 export interface DemoResponse {
   message: string;
