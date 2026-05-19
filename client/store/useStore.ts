@@ -6,9 +6,9 @@ import {
   TemplatesStore, 
   OperatorData, 
   NODE_TYPES,
-  HandleConfig,        // Tambahkan import
-  HandlePosition,       // Tambahkan import
-  DEFAULT_HANDLE_CONFIG // Tambahkan import
+  HandleConfig,
+  HandlePosition,
+  DEFAULT_HANDLE_CONFIG
 } from '@/shared/types';
 import { 
   Connection, 
@@ -25,6 +25,17 @@ import {
 } from 'reactflow';
 import { MarkerType } from 'reactflow';
 
+// ✅ IMPORT API FUNCTIONS
+import { 
+  fetchTemplates, 
+  saveTemplate as apiSaveTemplate, 
+  deleteTemplate as apiDeleteTemplate,
+  duplicateTemplate as apiDuplicateTemplate,
+  saveFlowByLine,
+  fetchFlowByLineId,
+  fetchAllSavedLines,
+} from '@/services/api';
+
 export type MachineStatus = 'active' | 'idle' | 'warning' | 'down';
 
 export interface MachineData {
@@ -35,13 +46,11 @@ export interface MachineData {
   lastMaintenance: string;
   template?: MachineTemplate;
   frameRotation?: number;
-  handles?: HandleConfig; // Tambahkan
+  handles?: HandleConfig;
 }
 
-// Union type untuk semua node data
 export type NodeData = MachineData | OperatorData;
 
-// History item type
 interface HistoryItem {
   nodes: Node<NodeData>[];
   edges: Edge[];
@@ -54,24 +63,25 @@ interface FlowState {
   edges: Edge[];
   selectedNodeId: string | null;
   lastSaved: string | null;
+  currentLineId: string | null; // ✅ NEW: Track line_id yang sedang aktif
+  currentLineName: string | null; // ✅ NEW: Track line_name
   
-  // History states
   history: HistoryItem[];
   historyIndex: number;
   maxHistorySize: number;
   
-  // View and templates
   viewMode: ViewMode;
   templates: MachineTemplate[];
   nodeTemplates: Record<string, string>;
   selectedTemplateId: string | null;
+  isDbConnected: boolean; // ✅ NEW: Track database connection status
   
-  // Methods
+  // View & Templates
   setViewMode: (mode: ViewMode) => void;
-  loadTemplates: () => void;
-  saveTemplate: (template: MachineTemplate) => void;
-  deleteTemplate: (templateId: string) => void;
-  duplicateTemplate: (templateId: string) => void;
+  loadTemplates: () => Promise<void>; // ✅ Async
+  saveTemplate: (template: MachineTemplate) => Promise<void>;
+  deleteTemplate: (templateId: string) => Promise<void>;
+  duplicateTemplate: (templateId: string) => Promise<void>;
   getTemplateById: (id: string | null) => MachineTemplate | undefined;
   assignTemplateToNode: (nodeId: string, templateId: string | null) => void;
   getNodeTemplate: (nodeId: string) => MachineTemplate | undefined;
@@ -87,11 +97,11 @@ interface FlowState {
   deleteNode: (nodeId: string) => void;
   updateThroughput: () => void;
   
-  // Handle management methods - TAMBAHKAN
+  // Handle management
   toggleHandle: (nodeId: string, position: HandlePosition) => void;
   getActiveHandles: (nodeId: string) => HandlePosition[];
   
-  // Operator specific methods
+  // Operator
   updateOperatorConnections: () => void;
   
   // Save & Load
@@ -101,6 +111,11 @@ interface FlowState {
   importFromFile: (file: File) => Promise<void>;
   clearAll: () => void;
   
+  // ✅ NEW: Database operations
+  saveFlowToDatabase: (lineId: string, lineName?: string, name?: string, description?: string) => Promise<boolean>;
+  loadFlowFromDatabase: (lineId: string) => Promise<boolean>;
+  checkDbConnection: () => Promise<boolean>;
+  
   // Undo/Redo
   undo: () => void;
   redo: () => void;
@@ -108,18 +123,16 @@ interface FlowState {
   canRedo: () => boolean;
   pushToHistory: (description: string) => void;
   
-  // Edge deletion
+  // Edge
   deleteEdge: (edgeId: string) => void;
 }
 
-// Helper untuk generate warna unik berdasarkan ID operator
+// Helper functions
 const generateOperatorColor = (id: number): string => {
-  // Menggunakan golden angle approximation untuk distribusi warna yang merata
   const hue = (id * 137.5) % 360;
   return `hsl(${hue}, 70%, 60%)`;
 };
 
-// Helper untuk mendapatkan handle config default - GUNAKAN DARI IMPORT
 const getDefaultHandleConfig = (): HandleConfig => ({
   top: true,
   bottom: true,
@@ -127,41 +140,45 @@ const getDefaultHandleConfig = (): HandleConfig => ({
   right: true
 });
 
-// Helper untuk mendapatkan active handles dari config
 const getActiveHandlesFromConfig = (config?: HandleConfig): HandlePosition[] => {
-  if (!config) return ['top', 'bottom', 'left', 'right']; // default semua aktif
+  if (!config) return ['top', 'bottom', 'left', 'right'];
   return (['top', 'bottom', 'left', 'right'] as HandlePosition[]).filter(
     pos => config[pos]
   );
 };
 
-// Helper function to generate initial machine data
-const createMachineData = (type: string): MachineData => {
-  const baseLabel = type || 'New Machine';
-  return {
-    label: `${baseLabel} ${Math.floor(Math.random() * 1000)}`,
-    status: 'idle',
-    throughput: Math.floor(Math.random() * 80) + 20,
-    capacity: 100,
-    lastMaintenance: new Date().toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    }),
-    handles: getDefaultHandleConfig(), // Tambahkan default handles
-  };
-};
+const createMachineData = (type: string): MachineData => ({
+  label: `${type || 'New Machine'} ${Math.floor(Math.random() * 1000)}`,
+  status: 'idle',
+  throughput: Math.floor(Math.random() * 80) + 20,
+  capacity: 100,
+  lastMaintenance: new Date().toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  }),
+  handles: getDefaultHandleConfig(),
+});
 
-const createOperatorData = (): OperatorData => {
-  // Ini akan diisi setelah validasi ID dan process
-  return {
-    id: null,
-    process: null,
-    label: null,
-    handles: getDefaultHandleConfig(), // Default semua aktif
-    color: null // Akan diisi saat ID ditetapkan
-  } as OperatorData;
-};
+const createDefaultChairConfig = (color?: string) => ({
+  enabled: true,
+  chairColor: color || '#a855f7',
+  showIdInChair: true,
+  showProcessInChair: true,
+  chairWidth: 80,
+  chairHeight: 100,
+  seatDepth: 45,
+  backrestHeight: 55,
+});
+
+const createOperatorData = (): OperatorData => ({
+  id: null,
+  process: null,
+  label: null,
+  handles: getDefaultHandleConfig(),
+  color: null,
+  chairDesign: createDefaultChairConfig(),
+} as OperatorData);
 
 const manualAddEdge = (edgeParams: any, existingEdges: Edge[]) => {
   const newEdge: Edge = {
@@ -171,7 +188,6 @@ const manualAddEdge = (edgeParams: any, existingEdges: Edge[]) => {
   return [...existingEdges, newEdge];
 };
 
-// Helper function untuk menentukan handle terdekat antara dua node - DIMODIFIKASI
 const getNearestHandles = (
   sourceNode: Node<OperatorData | MachineData>, 
   targetNode: Node<OperatorData | MachineData>,
@@ -181,47 +197,39 @@ const getNearestHandles = (
   const sourcePos = sourceNode.position;
   const targetPos = targetNode.position;
   
-  // Hitung selisih posisi
   const deltaX = targetPos.x - sourcePos.x;
   const deltaY = targetPos.y - sourcePos.y;
   
-  // Tentukan arah dominan
   const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
   
-  // Urutan prioritas handle berdasarkan arah
   let preferredSourcePositions: HandlePosition[] = [];
   let preferredTargetPositions: HandlePosition[] = [];
   
   if (isHorizontal) {
     if (deltaX > 0) {
-      // Target di KANAN
       preferredSourcePositions = ['right', 'top', 'bottom', 'left'];
       preferredTargetPositions = ['left', 'top', 'bottom', 'right'];
     } else {
-      // Target di KIRI
       preferredSourcePositions = ['left', 'top', 'bottom', 'right'];
       preferredTargetPositions = ['right', 'top', 'bottom', 'left'];
     }
   } else {
     if (deltaY > 0) {
-      // Target di BAWAH
       preferredSourcePositions = ['bottom', 'left', 'right', 'top'];
       preferredTargetPositions = ['top', 'left', 'right', 'bottom'];
     } else {
-      // Target di ATAS
       preferredSourcePositions = ['top', 'left', 'right', 'bottom'];
       preferredTargetPositions = ['bottom', 'left', 'right', 'top'];
     }
   }
   
-  // Pilih handle pertama yang aktif
   const sourceHandle = preferredSourcePositions.find(pos => 
     sourceActiveHandles.includes(pos)
-  ) || sourceActiveHandles[0]; // fallback ke handle aktif pertama
+  ) || sourceActiveHandles[0];
   
   const targetHandle = preferredTargetPositions.find(pos => 
     targetActiveHandles.includes(pos)
-  ) || targetActiveHandles[0]; // fallback ke handle aktif pertama
+  ) || targetActiveHandles[0];
   
   return {
     sourceHandle: `${sourceHandle}-source`,
@@ -229,13 +237,18 @@ const getNearestHandles = (
   };
 };
 
+// =============================================
+// STORE
+// =============================================
+
 export const useStore = create<FlowState>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
   lastSaved: null,
+  currentLineId: null, // ✅ NEW
+  currentLineName: null, // ✅ NEW
   
-  // History
   history: [{
     nodes: [],
     edges: [],
@@ -245,28 +258,359 @@ export const useStore = create<FlowState>((set, get) => ({
   historyIndex: 0,
   maxHistorySize: 50,
   
-  // New state
   viewMode: 'default',
   templates: [],
   nodeTemplates: {},
   selectedTemplateId: null,
+  isDbConnected: false, // ✅ NEW
 
-  // Helper to push current state to history
+  // =============================================
+  // ✅ CHECK DATABASE CONNECTION
+  // =============================================
+  checkDbConnection: async () => {
+    try {
+      const { checkDatabaseHealth } = await import('@/services/api');
+      const result = await checkDatabaseHealth();
+      set({ isDbConnected: result?.connected || false });
+      return result?.connected || false;
+    } catch {
+      set({ isDbConnected: false });
+      return false;
+    }
+  },
+
+  // =============================================
+  // ✅ LOAD TEMPLATES (Database + localStorage fallback)
+  // =============================================
+  loadTemplates: async () => {
+    try {
+      // Coba dari database dulu
+      try {
+        const dbTemplates = await fetchTemplates();
+        if (dbTemplates && dbTemplates.length > 0) {
+          set({ templates: dbTemplates, isDbConnected: true });
+          // Sync ke localStorage sebagai backup
+          localStorage.setItem('flow2d-templates', JSON.stringify(dbTemplates));
+          console.log(`[Store] Loaded ${dbTemplates.length} templates from database`);
+          return;
+        }
+      } catch (dbError: any) {
+        console.warn('[Store] Failed to load templates from DB, trying localStorage:', dbError.message);
+      }
+
+      // Fallback ke localStorage
+      const saved = localStorage.getItem('flow2d-templates');
+      if (saved) {
+        const localTemplates = JSON.parse(saved);
+        set({ templates: localTemplates });
+        console.log(`[Store] Loaded ${localTemplates.length} templates from localStorage`);
+        
+        // ✅ Sync localStorage ke database jika database kosong
+        if (localTemplates.length > 0) {
+          try {
+            for (const template of localTemplates) {
+              await apiSaveTemplate(template);
+            }
+            console.log('[Store] Synced localStorage templates to database');
+            set({ isDbConnected: true });
+          } catch (syncError: any) {
+            console.warn('[Store] Failed to sync templates to database:', syncError.message);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[Store] Failed to load templates:', error);
+    }
+  },
+
+  // =============================================
+  // ✅ SAVE TEMPLATE (Database + localStorage)
+  // =============================================
+  saveTemplate: async (template: MachineTemplate) => {
+    // Update state dulu (optimistic)
+    set(state => {
+      const existingIndex = state.templates.findIndex(t => t.id === template.id);
+      let newTemplates;
+      
+      if (existingIndex >= 0) {
+        newTemplates = [...state.templates];
+        newTemplates[existingIndex] = template;
+      } else {
+        newTemplates = [...state.templates, template];
+      }
+      
+      // Backup ke localStorage
+      try {
+        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+      } catch (e) {
+        console.warn('[Store] Failed to save templates to localStorage');
+      }
+      
+      return { templates: newTemplates };
+    });
+    
+    // ✅ Simpan ke database (async)
+    try {
+      const result = await apiSaveTemplate(template);
+      console.log(`[Store] Template "${template.name}" saved to database:`, result.action);
+      set({ isDbConnected: true });
+    } catch (error: any) {
+      console.warn('[Store] Failed to save template to database:', error.message);
+      // Tidak throw - localStorage sudah menjadi backup
+    }
+    
+    get().pushToHistory(`Saved template: ${template.name}`);
+  },
+
+  // =============================================
+  // ✅ DELETE TEMPLATE
+  // =============================================
+  deleteTemplate: async (templateId: string) => {
+    set(state => {
+      const newTemplates = state.templates.filter(t => t.id !== templateId);
+      
+      const newNodeTemplates = { ...state.nodeTemplates };
+      Object.keys(newNodeTemplates).forEach(nodeId => {
+        if (newNodeTemplates[nodeId] === templateId) {
+          delete newNodeTemplates[nodeId];
+        }
+      });
+      
+      localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+      
+      const flowData = {
+        nodes: state.nodes,
+        edges: state.edges,
+        nodeTemplates: newNodeTemplates,
+        timestamp: new Date().toISOString(),
+        version: '1.4',
+      };
+      localStorage.setItem('flow2d-save', JSON.stringify(flowData));
+      
+      return { 
+        templates: newTemplates,
+        nodeTemplates: newNodeTemplates
+      };
+    });
+    
+    // ✅ Hapus dari database
+    try {
+      await apiDeleteTemplate(templateId);
+      console.log(`[Store] Template "${templateId}" deleted from database`);
+    } catch (error: any) {
+      console.warn('[Store] Failed to delete template from database:', error.message);
+    }
+    
+    get().pushToHistory(`Deleted template`);
+  },
+
+  // =============================================
+  // ✅ DUPLICATE TEMPLATE
+  // =============================================
+  duplicateTemplate: async (templateId: string) => {
+    const { templates } = get();
+    const original = templates.find(t => t.id === templateId);
+    if (!original) return;
+    
+    const newId = `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newName = `${original.name} (Copy)`;
+    
+    const duplicate: MachineTemplate = {
+      ...JSON.parse(JSON.stringify(original)),
+      id: newId,
+      name: newName,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    set(state => {
+      const newTemplates = [...state.templates, duplicate];
+      localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
+      return { templates: newTemplates };
+    });
+    
+    // ✅ Duplikasi ke database
+    try {
+      const result = await apiDuplicateTemplate(templateId, newId, newName);
+      console.log(`[Store] Template duplicated in database:`, result.newId);
+    } catch (error: any) {
+      console.warn('[Store] Failed to duplicate in database, saving as new:', error.message);
+      try {
+        await apiSaveTemplate(duplicate);
+      } catch (saveError: any) {
+        console.warn('[Store] Fallback save also failed:', saveError.message);
+      }
+    }
+    
+    get().pushToHistory(`Duplicated template: ${original.name}`);
+  },
+
+  getTemplateById: (id: string | null) => {
+    if (!id) return undefined;
+    return get().templates.find(t => t.id === id);
+  },
+
+  assignTemplateToNode: (nodeId: string, templateId: string | null) => {
+    set(state => {
+      const newNodeTemplates = { ...state.nodeTemplates };
+      
+      if (templateId === null) {
+        delete newNodeTemplates[nodeId];
+      } else {
+        newNodeTemplates[nodeId] = templateId;
+      }
+      
+      return { nodeTemplates: newNodeTemplates };
+    });
+    get().pushToHistory(`Assigned template to node`);
+  },
+
+  getNodeTemplate: (nodeId: string) => {
+    const { nodeTemplates, templates } = get();
+    const templateId = nodeTemplates[nodeId];
+    if (!templateId) return undefined;
+    return templates.find(t => t.id === templateId);
+  },
+
+  // =============================================
+  // ✅ SAVE FLOW TO DATABASE
+  // =============================================
+saveFlowToDatabase: async (lineId: string, lineName?: string, name?: string, description?: string) => {
+    const { nodes, edges, nodeTemplates, viewMode, templates } = get();
+    
+    if (!lineId || lineId.trim().length === 0) {
+      console.warn('[Store] Line ID is required');
+      return false;
+    }
+    
+    if (nodes.length === 0) {
+      console.warn('[Store] No nodes to save');
+      return false;
+    }
+    
+    try {
+      // ✅ ENRICH NODES: Tambahkan FULL TEMPLATE data ke setiap machine node
+      const enrichedNodes = nodes.map(node => {
+        const nodeData = { ...node.data };
+        
+        // Jika machine node dan punya template ID di nodeTemplates
+        const templateId = nodeTemplates[node.id];
+        if (templateId && (node.type === 'machineNode' || node.type === 'shapeMachineNode')) {
+          // Cari full template dari state templates
+          const fullTemplate = templates.find(t => t.id === templateId);
+          if (fullTemplate) {
+            nodeData.template = fullTemplate; // ✅ SIMPAN FULL TEMPLATE (shapes, frameType, dll)
+            console.log(`[Store] Attached template "${fullTemplate.name}" to node ${node.id}`);
+          } else {
+            console.warn(`[Store] Template ${templateId} not found for node ${node.id}`);
+          }
+        }
+        
+        // ✅ Jangan simpan properti React internal
+        const { ...cleanData } = nodeData;
+        
+        return {
+          id: node.id,
+          type: node.type,
+          position: node.position,
+          data: cleanData,
+        };
+      });
+      
+      console.log(`[Store] Saving: ${enrichedNodes.length} nodes, ${edges.length} edges`);
+      console.log(`[Store] ViewMode: ${viewMode}, Templates: ${templates.length}`);
+      
+      const result = await saveFlowByLine({
+        lineId: lineId.trim(),
+        lineName: lineName || `Line ${lineId}`,
+        name: name || `Flow for ${lineId}`,
+        description: description || '',
+        nodes: enrichedNodes,
+        edges: edges, // ✅ SIMPAN EDGES
+        nodeTemplates: nodeTemplates || {},
+        formations: null,
+        viewMode: viewMode || 'shapes',
+      });
+      
+      console.log(`[Store] Saved successfully:`, result);
+      
+      set({ 
+        currentLineId: lineId,
+        currentLineName: lineName || null,
+        lastSaved: new Date().toLocaleString(),
+        isDbConnected: true,
+      });
+      
+      get().saveToLocalStorage();
+      
+      return true;
+    } catch (error: any) {
+      console.error('[Store] Failed to save flow to database:', error.message);
+      console.error('[Store] Full error:', error);
+      return false;
+    }
+  },
+
+  // =============================================
+  // ✅ LOAD FLOW FROM DATABASE
+  // =============================================
+  loadFlowFromDatabase: async (lineId: string) => {
+    if (!lineId) return false;
+    
+    try {
+      console.log(`[Store] Loading flow from database for line "${lineId}"...`);
+      
+      const flow = await fetchFlowByLineId(lineId);
+      
+      if (!flow || !flow.nodes) {
+        console.warn(`[Store] No flow found for line "${lineId}"`);
+        return false;
+      }
+      
+      // ✅ Set state dengan data dari database
+      set({
+        nodes: flow.nodes || [],
+        edges: flow.edges || [],
+        nodeTemplates: flow.nodeTemplates || {},
+        currentLineId: lineId,
+        currentLineName: flow.lineName || null,
+        lastSaved: new Date(flow.updatedAt || Date.now()).toLocaleString(),
+        isDbConnected: true,
+      });
+      
+      // ✅ Backup ke localStorage
+      get().saveToLocalStorage();
+      
+      console.log(`[Store] Flow loaded: ${flow.nodes.length} nodes, ${flow.edges.length} edges`);
+      
+      // ✅ Update operator connections
+      setTimeout(() => {
+        get().updateOperatorConnections();
+      }, 200);
+      
+      get().pushToHistory(`Loaded flow from database for line "${lineId}"`);
+      
+      return true;
+    } catch (error: any) {
+      console.error('[Store] Failed to load flow from database:', error.message);
+      return false;
+    }
+  },
+
+  setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
+
   pushToHistory: (description: string) => {
     const { nodes, edges, history, historyIndex, maxHistorySize } = get();
     
-    // Remove any future history if we're not at the latest
     const newHistory = history.slice(0, historyIndex + 1);
     
-    // Add new state
     newHistory.push({
-      nodes: JSON.parse(JSON.stringify(nodes)), // Deep clone
+      nodes: JSON.parse(JSON.stringify(nodes)),
       edges: JSON.parse(JSON.stringify(edges)),
       timestamp: Date.now(),
       description
     });
     
-    // Limit history size
     if (newHistory.length > maxHistorySize) {
       newHistory.shift();
     }
@@ -280,12 +624,10 @@ export const useStore = create<FlowState>((set, get) => ({
   onNodesChange: (changes: NodeChange[]) => {
     const { nodes } = get();
     const newNodes = applyNodeChanges(changes, nodes);
-    
     const hasPositionChange = changes.some(change => change.type === 'position' || change.type === 'dimensions');
     
     set({ nodes: newNodes });
     
-    // Jika ada perubahan posisi, update koneksi operator
     if (hasPositionChange) {
       get().updateOperatorConnections();
     }
@@ -301,38 +643,33 @@ export const useStore = create<FlowState>((set, get) => ({
   onConnect: (connection: Connection) => {
     const { edges, nodes, pushToHistory } = get();
     
-    // Cek source dan target nodes
     const sourceNode = nodes.find(n => n.id === connection.source);
     const targetNode = nodes.find(n => n.id === connection.target);
     
     if (!sourceNode || !targetNode) return;
     
-    // Dapatkan active handles untuk kedua node
     const sourceActiveHandles = get().getActiveHandles(sourceNode.id);
     const targetActiveHandles = get().getActiveHandles(targetNode.id);
     
-    // Jika tidak ada active handles di salah satu node, tolak koneksi
     if (sourceActiveHandles.length === 0 || targetActiveHandles.length === 0) {
       console.warn('Cannot connect: Node has no active handles');
       return;
     }
     
-    // Jika kedua node adalah operator, cek apakah mereka memiliki ID yang sama
+    const edgeType = 'smart-avoid';
+    
     if (sourceNode?.type === 'operatorNode' && targetNode?.type === 'operatorNode') {
       const sourceData = sourceNode.data as OperatorData;
       const targetData = targetNode.data as OperatorData;
       
-      // Jika ID berbeda, tolak koneksi
       if (sourceData.id !== targetData.id) {
         console.warn('Cannot connect operators with different IDs');
         return;
       }
       
-      // Jika ID sama, izinkan koneksi manual
       let sourceHandle = connection.sourceHandle;
       let targetHandle = connection.targetHandle;
       
-      // Jika handle tidak ditentukan (koneksi dari panel), gunakan nearest dengan active handles
       if (!sourceHandle || !targetHandle) {
         const handles = getNearestHandles(
           sourceNode as Node<OperatorData>, 
@@ -342,26 +679,18 @@ export const useStore = create<FlowState>((set, get) => ({
         );
         sourceHandle = handles.sourceHandle;
         targetHandle = handles.targetHandle;
-      } else {
-        // Validasi handle yang dipilih aktif
-        const sourcePos = sourceHandle.split('-')[0] as HandlePosition;
-        const targetPos = targetHandle.split('-')[0] as HandlePosition;
-        
-        if (!sourceActiveHandles.includes(sourcePos) || !targetActiveHandles.includes(targetPos)) {
-          console.warn('Selected handle is not active');
-          return;
-        }
       }
       
       const newEdges = manualAddEdge({
         ...connection,
         sourceHandle,
         targetHandle,
-        type: 'smoothstep',
+        type: edgeType,
         animated: true,
         style: { 
           stroke: sourceData.color || generateOperatorColor(sourceData.id), 
           strokeWidth: 2,
+          strokeDasharray: '5,5',
         },
         markerEnd: {
           type: 'arrow',
@@ -372,14 +701,13 @@ export const useStore = create<FlowState>((set, get) => ({
         data: { 
           operatorId: sourceData.id,
           sourceProcess: sourceData.process,
-          targetProcess: targetData.process
+          targetProcess: targetData.process,
         },
       }, edges);
       
       set({ edges: newEdges });
-      pushToHistory('Manual operator connection created');
+      pushToHistory('Operator connection created');
     } else {
-      // Untuk koneksi yang melibatkan machine, validasi handles
       let sourceHandle = connection.sourceHandle;
       let targetHandle = connection.targetHandle;
       
@@ -392,26 +720,17 @@ export const useStore = create<FlowState>((set, get) => ({
         );
         sourceHandle = handles.sourceHandle;
         targetHandle = handles.targetHandle;
-      } else {
-        // Validasi handle yang dipilih aktif
-        const sourcePos = sourceHandle.split('-')[0] as HandlePosition;
-        const targetPos = targetHandle.split('-')[0] as HandlePosition;
-        
-        if (!sourceActiveHandles.includes(sourcePos) || !targetActiveHandles.includes(targetPos)) {
-          console.warn('Selected handle is not active');
-          return;
-        }
       }
       
       const newEdges = manualAddEdge({
         ...connection,
         sourceHandle,
         targetHandle,
-        type: 'smoothstep',
+        type: edgeType,
         animated: false,
         style: { 
           stroke: '#1e293b', 
-          strokeWidth: 2 
+          strokeWidth: 2,
         },
         markerEnd: {
           type: 'arrowclosed',
@@ -426,154 +745,11 @@ export const useStore = create<FlowState>((set, get) => ({
     }
   },
 
-  setSelectedNodeId: (id: string | null) => {
-    set({ selectedNodeId: id });
-  },
+  setSelectedNodeId: (id: string | null) => set({ selectedNodeId: id }),
 
-  // New methods
-  setViewMode: (mode: ViewMode) => {
-    set({ viewMode: mode });
-  },
-  
-  loadTemplates: () => {
-    try {
-      const saved = localStorage.getItem('flow2d-templates');
-      if (saved) {
-        const templates = JSON.parse(saved);
-        set({ templates });
-      }
-    } catch (error) {
-      console.error('Failed to load templates:', error);
-    }
-  },
-  
-  saveTemplate: (template: MachineTemplate) => {
-    set(state => {
-      const existingIndex = state.templates.findIndex(t => t.id === template.id);
-      let newTemplates;
-      
-      if (existingIndex >= 0) {
-        // Update existing
-        newTemplates = [...state.templates];
-        newTemplates[existingIndex] = template;
-      } else {
-        // Add new
-        newTemplates = [...state.templates, template];
-      }
-      
-      // Save to localStorage
-      try {
-        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
-      } catch (error) {
-        console.error('Failed to save templates:', error);
-      }
-      
-      return { templates: newTemplates };
-    });
-    
-    get().pushToHistory(`Saved template: ${template.name}`);
-  },
-  
-  deleteTemplate: (templateId: string) => {
-    set(state => {
-      const newTemplates = state.templates.filter(t => t.id !== templateId);
-      
-      // Remove from any nodes using this template
-      const newNodeTemplates = { ...state.nodeTemplates };
-      Object.keys(newNodeTemplates).forEach(nodeId => {
-        if (newNodeTemplates[nodeId] === templateId) {
-          delete newNodeTemplates[nodeId];
-        }
-      });
-      
-      // Save to localStorage
-      try {
-        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
-        
-        // Also update the main save to reflect node template changes
-        const flowData = {
-          nodes: state.nodes,
-          edges: state.edges,
-          nodeTemplates: newNodeTemplates,
-          timestamp: new Date().toISOString(),
-          version: '1.1',
-        };
-        localStorage.setItem('flow2d-save', JSON.stringify(flowData));
-      } catch (error) {
-        console.error('Failed to save templates:', error);
-      }
-      
-      return { 
-        templates: newTemplates,
-        nodeTemplates: newNodeTemplates
-      };
-    });
-    
-    get().pushToHistory(`Deleted template`);
-  },
-  
-  duplicateTemplate: (templateId: string) => {
-    const { templates } = get();
-    const original = templates.find(t => t.id === templateId);
-    if (!original) return;
-    
-    const duplicate: MachineTemplate = {
-      ...JSON.parse(JSON.stringify(original)),
-      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: `${original.name} (Copy)`,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    
-    set(state => {
-      const newTemplates = [...state.templates, duplicate];
-      
-      // Save to localStorage
-      try {
-        localStorage.setItem('flow2d-templates', JSON.stringify(newTemplates));
-      } catch (error) {
-        console.error('Failed to save templates:', error);
-      }
-      
-      return { templates: newTemplates };
-    });
-    
-    get().pushToHistory(`Duplicated template: ${original.name}`);
-  },
-  
-  getTemplateById: (id: string | null) => {
-    if (!id) return undefined;
-    return get().templates.find(t => t.id === id);
-  },
-  
-  assignTemplateToNode: (nodeId: string, templateId: string | null) => {
-    set(state => {
-      const newNodeTemplates = { ...state.nodeTemplates };
-      
-      if (templateId === null) {
-        delete newNodeTemplates[nodeId];
-      } else {
-        newNodeTemplates[nodeId] = templateId;
-      }
-      
-      return { nodeTemplates: newNodeTemplates };
-    });
-    
-    get().pushToHistory(`Assigned template to node`);
-  },
-  
-  getNodeTemplate: (nodeId: string) => {
-    const { nodeTemplates, templates } = get();
-    const templateId = nodeTemplates[nodeId];
-    if (!templateId) return undefined;
-    return templates.find(t => t.id === templateId);
-  },
-  
-  // TAMBAHKAN METHOD toggleHandle
   toggleHandle: (nodeId: string, position: HandlePosition) => {
     const { nodes } = get();
     const node = nodes.find(n => n.id === nodeId);
-    
     if (!node) return;
     
     const currentHandles = (node.data as any).handles || getDefaultHandleConfig();
@@ -582,7 +758,6 @@ export const useStore = create<FlowState>((set, get) => ({
       [position]: !currentHandles[position]
     };
     
-    // Update node data
     set({
       nodes: nodes.map(n =>
         n.id === nodeId
@@ -591,22 +766,18 @@ export const useStore = create<FlowState>((set, get) => ({
       )
     });
     
-    // Update koneksi yang terkena dampak
     get().updateOperatorConnections();
     get().pushToHistory(`Toggled handle ${position}`);
   },
-  
-  // TAMBAHKAN METHOD getActiveHandles
+
   getActiveHandles: (nodeId: string) => {
     const { nodes } = get();
     const node = nodes.find(n => n.id === nodeId);
-    
     if (!node) return [];
-    
     const handles = (node.data as any).handles;
     return getActiveHandlesFromConfig(handles);
   },
-  
+
   addNode: (type: string, position: { x: number; y: number }) => {
     const newNode: Node<MachineData> = {
       id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -619,36 +790,31 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory(`Added ${type} machine`);
   },
 
-  // Method: addOperator
   addOperator: (position: { x: number; y: number }) => {
     const { nodes } = get();
-    const operatorNodes = nodes.filter(n => n.type === 'operatorNode') as Node<OperatorData>[];
-    
     const operatorData = createOperatorData();
     
     const newNode: Node<OperatorData> = {
       id: `operator-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: 'operatorNode',
       position,
-      data: operatorData,
+      data: {
+        ...operatorData,
+        chairDesign: createDefaultChairConfig(),
+      },
     };
 
     set({ nodes: [...nodes, newNode] });
-    
-    // Update koneksi otomatis setelah menambah operator
     get().updateOperatorConnections();
     get().pushToHistory(`Added operator`);
   },
 
-  // Method: updateOperatorConnections - MODIFIKASI untuk handle aktif
   updateOperatorConnections: () => {
     const { nodes, edges } = get();
     
-    // Filter hanya operator nodes
     const operatorNodes = nodes.filter(n => n.type === 'operatorNode') as Node<OperatorData>[];
     
     if (operatorNodes.length < 2) {
-      // Hapus semua operator edges jika kurang dari 2 operator
       const nonOperatorEdges = edges.filter(edge => {
         const sourceNode = nodes.find(n => n.id === edge.source);
         const targetNode = nodes.find(n => n.id === edge.target);
@@ -658,7 +824,6 @@ export const useStore = create<FlowState>((set, get) => ({
       return;
     }
     
-    // Pastikan setiap operator memiliki color berdasarkan ID
     const nodesWithColor = operatorNodes.map(node => {
       if (!node.data.color && node.data.id) {
         node.data.color = generateOperatorColor(node.data.id);
@@ -666,68 +831,46 @@ export const useStore = create<FlowState>((set, get) => ({
       return node;
     });
     
-    // Update nodes dengan color
     set({ nodes: nodes.map(n => {
       const updated = nodesWithColor.find(un => un.id === n.id);
       return updated || n;
     })});
     
-    // Group operators by ID
     const operatorsById: Record<number, Node<OperatorData>[]> = {};
     
     nodesWithColor.forEach(node => {
       const id = node.data.id;
-      if (id && !operatorsById[id]) {
-        operatorsById[id] = [];
-      }
-      if (id) {
-        operatorsById[id].push(node);
-      }
+      if (id && !operatorsById[id]) operatorsById[id] = [];
+      if (id) operatorsById[id].push(node);
     });
     
-    // Hapus semua edges yang terkait operator (yang bukan machine)
     const nonOperatorEdges = edges.filter(edge => {
       const sourceNode = nodes.find(n => n.id === edge.source);
       const targetNode = nodes.find(n => n.id === edge.target);
-      // Keep edges that involve machines
       return sourceNode?.type !== 'operatorNode' && targetNode?.type !== 'operatorNode';
     });
     
-    // Buat edges baru berdasarkan grouping ID dengan nearest handle dan handle aktif
     const newOperatorEdges: Edge[] = [];
     
     Object.entries(operatorsById).forEach(([idStr, nodesWithSameId]) => {
       const id = parseInt(idStr);
       
       if (nodesWithSameId.length >= 2) {
-        // Sort by process number (ascending)
         const sortedNodes = [...nodesWithSameId].sort((a, b) => a.data.process - b.data.process);
         
-        // Connect in order: smallest process to next, and last back to first (cycle)
         for (let i = 0; i < sortedNodes.length; i++) {
           const sourceNode = sortedNodes[i];
-          const targetNode = sortedNodes[(i + 1) % sortedNodes.length]; // Cycle back to first
+          const targetNode = sortedNodes[(i + 1) % sortedNodes.length];
           
-          // Dapatkan active handles untuk kedua node
           const sourceActiveHandles = get().getActiveHandles(sourceNode.id);
           const targetActiveHandles = get().getActiveHandles(targetNode.id);
           
-          // Jika salah satu node tidak memiliki active handles, skip koneksi ini
-          if (sourceActiveHandles.length === 0 || targetActiveHandles.length === 0) {
-            continue;
-          }
+          if (sourceActiveHandles.length === 0 || targetActiveHandles.length === 0) continue;
           
-          // Dapatkan handle terdekat yang aktif
-          const handles = getNearestHandles(
-            sourceNode, 
-            targetNode,
-            sourceActiveHandles,
-            targetActiveHandles
-          );
+          const handles = getNearestHandles(sourceNode, targetNode, sourceActiveHandles, targetActiveHandles);
           
           const edgeId = `operator-edge-${id}-${sourceNode.data.process}-${targetNode.data.process}-${Date.now()}-${i}`;
           
-          // Cek apakah edge sudah ada
           const edgeExists = nonOperatorEdges.some(e => 
             e.source === sourceNode.id && e.target === targetNode.id
           ) || newOperatorEdges.some(e => 
@@ -741,12 +884,12 @@ export const useStore = create<FlowState>((set, get) => ({
               target: targetNode.id,
               sourceHandle: handles.sourceHandle,
               targetHandle: handles.targetHandle,
-              type: 'smoothstep',
+              type: 'smart-avoid',
               animated: true,
               style: { 
                 stroke: sourceNode.data.color || generateOperatorColor(id), 
                 strokeWidth: 2,
-                strokeDasharray: '5,5'
+                strokeDasharray: '5,5',
               },
               markerEnd: {
                 type: MarkerType.ArrowClosed,
@@ -757,7 +900,7 @@ export const useStore = create<FlowState>((set, get) => ({
               data: { 
                 operatorId: id,
                 sourceProcess: sourceNode.data.process,
-                targetProcess: targetNode.data.process
+                targetProcess: targetNode.data.process,
               },
             });
           }
@@ -765,23 +908,19 @@ export const useStore = create<FlowState>((set, get) => ({
       }
     });
     
-    // Gabungkan edges yang ada (non-operator) dengan edges baru
     set({ edges: [...nonOperatorEdges, ...newOperatorEdges] });
   },
 
   updateNodeData: (nodeId: string, data: Partial<NodeData>) => {
     const { nodes } = get();
     const node = nodes.find(n => n.id === nodeId);
-    
     if (!node) return;
     
-    // Jika node adalah operator dan data yang diubah adalah id atau process
-    if (node?.type === 'operatorNode' && (data.hasOwnProperty('id') || data.hasOwnProperty('process'))) {
+    if (node?.type === 'operatorNode' && (data.hasOwnProperty('id') || data.hasOwnProperty('process') || data.hasOwnProperty('chairDesign'))) {
       const currentData = node.data as OperatorData;
       const newId = (data as Partial<OperatorData>).id ?? currentData.id;
       const newProcess = (data as Partial<OperatorData>).process ?? currentData.process;
       
-      // Validasi: jika mengubah process, pastikan tidak duplicate untuk ID yang sama
       if (data.hasOwnProperty('process')) {
         const operatorsWithSameId = nodes.filter(n => 
           n.type === 'operatorNode' && 
@@ -790,40 +929,41 @@ export const useStore = create<FlowState>((set, get) => ({
         ) as Node<OperatorData>[];
         
         const isDuplicate = operatorsWithSameId.some(n => n.data.process === newProcess);
-        
         if (isDuplicate) {
           console.warn(`Process ${newProcess} already used for ID ${newId}`);
-          return; // Batalkan update
+          return;
         }
       }
       
-      // Generate color jika id berubah
       const newColor = newId ? generateOperatorColor(newId) : currentData.color;
       
-      // Update label jika id atau process berubah
+      let updatedChairDesign = currentData.chairDesign;
+      if (newColor && (!currentData.chairDesign?.chairColor || currentData.chairDesign?.chairColor === currentData.color)) {
+        updatedChairDesign = { ...(currentData.chairDesign || createDefaultChairConfig()), chairColor: newColor };
+      }
+      if ((data as any).chairDesign) {
+        updatedChairDesign = { ...updatedChairDesign, ...(data as any).chairDesign };
+      }
+      
       const updatedData = {
         ...currentData,
         ...data,
         label: `Operator ${newId}.${newProcess}`,
-        color: newColor
+        color: newColor,
+        chairDesign: updatedChairDesign,
       };
       
       set({
         nodes: nodes.map((n) =>
-          n.id === nodeId
-            ? { ...n, data: updatedData }
-            : n
+          n.id === nodeId ? { ...n, data: updatedData } : n
         ),
       });
       
       get().updateOperatorConnections();
     } else {
-      // Untuk machine node atau update biasa
       set({
         nodes: nodes.map((n) =>
-          n.id === nodeId
-            ? { ...n, data: { ...n.data, ...data } }
-            : n
+          n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
         ),
       });
     }
@@ -833,19 +973,14 @@ export const useStore = create<FlowState>((set, get) => ({
 
   deleteNode: (nodeId: string) => {
     const { nodes, edges } = get();
-    
-    // Cek apakah node yang dihapus adalah operator
     const nodeToDelete = nodes.find(n => n.id === nodeId);
     
     set({
       nodes: nodes.filter((node) => node.id !== nodeId),
-      edges: edges.filter(
-        (edge) => edge.source !== nodeId && edge.target !== nodeId
-      ),
+      edges: edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
       selectedNodeId: null,
     });
     
-    // Jika yang dihapus adalah operator, update koneksi operator lainnya
     if (nodeToDelete?.type === 'operatorNode') {
       get().updateOperatorConnections();
     }
@@ -853,11 +988,9 @@ export const useStore = create<FlowState>((set, get) => ({
     get().pushToHistory('Deleted node');
   },
 
-  // Method: deleteEdge
   deleteEdge: (edgeId: string) => {
     const { edges, pushToHistory } = get();
-    const newEdges = edges.filter(edge => edge.id !== edgeId);
-    set({ edges: newEdges });
+    set({ edges: edges.filter(edge => edge.id !== edgeId) });
     pushToHistory('Edge deleted');
   },
 
@@ -868,7 +1001,6 @@ export const useStore = create<FlowState>((set, get) => ({
           return node.type === 'machineNode' || node.type === 'shapeMachineNode';
         };
 
-        // Only update machine nodes, not operator nodes
         if (isMachineNode(node) && node.data.status === 'active') {
           const machineData = node.data as MachineData;
           const variation = Math.floor(Math.random() * 10) - 3;
@@ -881,10 +1013,8 @@ export const useStore = create<FlowState>((set, get) => ({
         return node;
       }),
     });
-    // Don't push throughput updates to history (too noisy)
   },
 
-  // Undo function
   undo: () => {
     const { history, historyIndex } = get();
     if (historyIndex > 0) {
@@ -898,7 +1028,6 @@ export const useStore = create<FlowState>((set, get) => ({
     }
   },
 
-  // Redo function
   redo: () => {
     const { history, historyIndex } = get();
     if (historyIndex < history.length - 1) {
@@ -912,13 +1041,8 @@ export const useStore = create<FlowState>((set, get) => ({
     }
   },
 
-  canUndo: () => {
-    return get().historyIndex > 0;
-  },
-
-  canRedo: () => {
-    return get().historyIndex < get().history.length - 1;
-  },
+  canUndo: () => get().historyIndex > 0,
+  canRedo: () => get().historyIndex < get().history.length - 1,
 
   saveToLocalStorage: () => {
     try {
@@ -926,8 +1050,10 @@ export const useStore = create<FlowState>((set, get) => ({
         nodes: get().nodes,
         edges: get().edges,
         nodeTemplates: get().nodeTemplates,
+        currentLineId: get().currentLineId,
+        currentLineName: get().currentLineName,
         timestamp: new Date().toISOString(),
-        version: '1.4', // Update version untuk handle config
+        version: '1.5',
       };
       
       localStorage.setItem('flow2d-save', JSON.stringify(flowData));
@@ -951,12 +1077,10 @@ export const useStore = create<FlowState>((set, get) => ({
       if (flowData.nodes && Array.isArray(flowData.nodes) && 
           flowData.edges && Array.isArray(flowData.edges)) {
         
-        // Migrasi data lama: tambahkan default handles jika belum ada
         const migratedNodes = flowData.nodes.map(node => {
           if (!node.data.handles) {
             node.data.handles = getDefaultHandleConfig();
           }
-          // Migrasi operator: tambahkan color jika belum ada dan ID tersedia
           if (node.type === 'operatorNode' && node.data.id && !node.data.color) {
             node.data.color = generateOperatorColor(node.data.id);
           }
@@ -967,13 +1091,13 @@ export const useStore = create<FlowState>((set, get) => ({
           nodes: migratedNodes, 
           edges: flowData.edges,
           nodeTemplates: flowData.nodeTemplates || {},
+          currentLineId: flowData.currentLineId || null,
+          currentLineName: flowData.currentLineName || null,
           lastSaved: new Date(flowData.timestamp).toLocaleString()
         });
         
-        // Reset history with loaded state
         get().pushToHistory('Loaded from storage');
         
-        // Update operator connections after loading
         setTimeout(() => {
           get().updateOperatorConnections();
         }, 100);
@@ -994,20 +1118,18 @@ export const useStore = create<FlowState>((set, get) => ({
         edges: get().edges,
         nodeTemplates: get().nodeTemplates,
         timestamp: new Date().toISOString(),
-        version: '1.4',
+        version: '1.5',
         appName: 'Flow2D Machine Schema',
       };
       
       const dataStr = JSON.stringify(flowData, null, 2);
       const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-      
       const exportFileDefaultName = `flow2d-export-${new Date().toISOString().slice(0,10)}.json`;
       
       const linkElement = document.createElement('a');
       linkElement.setAttribute('href', dataUri);
       linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
-      
     } catch (error) {
       console.error('Failed to export file:', error);
     }
@@ -1025,12 +1147,10 @@ export const useStore = create<FlowState>((set, get) => ({
           if (flowData.nodes && Array.isArray(flowData.nodes) && 
               flowData.edges && Array.isArray(flowData.edges)) {
             
-            // Migrasi data lama: tambahkan default handles jika belum ada
             const migratedNodes = flowData.nodes.map(node => {
               if (!node.data.handles) {
                 node.data.handles = getDefaultHandleConfig();
               }
-              // Migrasi operator: tambahkan color jika belum ada dan ID tersedia
               if (node.type === 'operatorNode' && node.data.id && !node.data.color) {
                 node.data.color = generateOperatorColor(node.data.id);
               }
@@ -1044,10 +1164,8 @@ export const useStore = create<FlowState>((set, get) => ({
               lastSaved: new Date(flowData.timestamp).toLocaleString()
             });
             
-            // Reset history with imported state
             get().pushToHistory('Imported from file');
             
-            // Update operator connections after import
             setTimeout(() => {
               get().updateOperatorConnections();
             }, 100);
@@ -1067,13 +1185,48 @@ export const useStore = create<FlowState>((set, get) => ({
   },
 
   clearAll: () => {
-    set({ nodes: [], edges: [], selectedNodeId: null, nodeTemplates: {} });
+    set({ 
+      nodes: [], 
+      edges: [], 
+      selectedNodeId: null, 
+      nodeTemplates: {},
+      currentLineId: null,
+      currentLineName: null,
+    });
     get().pushToHistory('Cleared all');
   },
 }));
 
-// Load templates on store creation
+// =============================================
+// ✅ INITIALIZATION: Load data saat store dibuat
+// =============================================
+
+// Load templates dari database
 useStore.getState().loadTemplates();
+
+// Cek koneksi database
+useStore.getState().checkDbConnection();
+
+// ✅ Load flow dari localStorage (cache) dulu, lalu sync dari database jika ada currentLineId
+const savedFlow = localStorage.getItem('flow2d-save');
+if (savedFlow) {
+  try {
+    const flowData = JSON.parse(savedFlow);
+    if (flowData.nodes && flowData.nodes.length > 0) {
+      useStore.getState().loadFromLocalStorage();
+      
+      // ✅ Jika ada currentLineId, coba load versi terbaru dari database
+      if (flowData.currentLineId) {
+        console.log(`[Init] Found cached line: ${flowData.currentLineId}, syncing from database...`);
+        useStore.getState().loadFlowFromDatabase(flowData.currentLineId).catch(() => {
+          console.log('[Init] Using cached data (database unavailable)');
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[Init] Failed to parse saved flow');
+  }
+}
 
 // Auto-save function
 export const setupAutoSave = (intervalMs: number = 30000) => {
@@ -1081,7 +1234,7 @@ export const setupAutoSave = (intervalMs: number = 30000) => {
     const { saveToLocalStorage, nodes } = useStore.getState();
     if (nodes.length > 0) {
       saveToLocalStorage();
-      console.log('Auto-saved at', new Date().toLocaleTimeString());
+      console.log('[AutoSave] Saved at', new Date().toLocaleTimeString());
     }
   }, intervalMs);
   

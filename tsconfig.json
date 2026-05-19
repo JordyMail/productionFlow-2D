@@ -25,12 +25,14 @@
     "noFallthroughCasesInSwitch": false,
     "strictNullChecks": false,
 
-    /* Path mapping */
+    /* Pzath mapping */
+    // saya ingin agar saya bisa menggunakan path alias untuk mengimpor modul dengan lebih mudah\
     "baseUrl": ".",
     "paths": {
       "@/*": ["./client/*"],
       "@shared/*": ["./shared/*"],
-      "@/shared/*": ["./shared/*"]
+      "@/shared/*": ["./shared/*"],
+      
     }
     // sekarang saya ingin agar node yang terhubung adalah node yang terdekat dari sisi mesin
     // contoh: jika operator a di sebelah kanan dan operator b di sebelah kiri, maka node operator a akan terhubung dengan node operaotr b menggunakan node titik node terdekat

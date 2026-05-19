@@ -6,6 +6,7 @@ export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type FrameType = 'rectangle' | 'rectangle2x1' | 'rectangle1x2' | 'circle' | 'triangle';
 export type HandlePosition = 'top' | 'bottom' | 'left' | 'right';
 export type HandleType = 'source' | 'target';
+export type EdgeRoutingType = 'straight' | 'smoothstep' | 'step' | 'bezier';
 
 export interface BaseShape {
   id: string;
@@ -161,8 +162,6 @@ export const createDefaultShape = (type: ShapeType, id: string): Shape => {
   }
 };
 
-// shared/types.ts
-
 // Tambahkan tipe untuk Operator
 export interface OperatorData {
   id: number;           // ID operator (bisa sama untuk beberapa operator)
@@ -171,6 +170,17 @@ export interface OperatorData {
   position?: { x: number; y: number };
   handles?: HandleConfig;
   color?: string;
+  // ========== NEW: Chair Design Properties ==========
+  chairDesign?: {
+    enabled: boolean;          // Default true untuk mode shapes
+    chairColor?: string;       // Warna kursi, default ikut color operator
+    showIdInChair?: boolean;   // Tampilkan ID di tengah kursi
+    showProcessInChair?: boolean; // Tampilkan Process di tengah kursi
+    chairWidth?: number;       // Lebar kursi
+    chairHeight?: number;      // Tinggi kursi
+    seatDepth?: number;        // Kedalaman dudukan
+    backrestHeight?: number;   // Tinggi sandaran
+  };
 }
 
 // Update MachineData jika perlu
@@ -192,6 +202,8 @@ export type NodeData = MachineData | OperatorData;
 export const NODE_TYPES = {
   MACHINE: 'machineNode',
   OPERATOR: 'operatorNode',
+  SHAPE_MACHINE: 'shapeMachineNode',
+  SHAPE_OPERATOR: 'shapeOperatorNode', // NEW: untuk operator di mode shapes
 } as const;
 
 export const DEFAULT_HANDLE_CONFIG: HandleConfig = {
@@ -201,9 +213,127 @@ export const DEFAULT_HANDLE_CONFIG: HandleConfig = {
   right: true
 };
 
+export const DEFAULT_CHAIR_CONFIG = {
+  enabled: true,
+  chairWidth: 80,
+  chairHeight: 100,
+  seatDepth: 45,
+  backrestHeight: 55,
+  showIdInChair: true,
+  showProcessInChair: true,
+};
+
 export interface HandleConfig {
   top: boolean;
   bottom: boolean;
   left: boolean;
   right: boolean;
+}
+
+export interface EdgeData {
+  operatorId?: number;
+  sourceProcess?: number;
+  targetProcess?: number;
+  routingType?: EdgeRoutingType; // NEW: tipe routing edge
+  avoidNodes?: string[]; // NEW: daftar node ID yang dihindari
+}
+
+// Konstanta untuk edge types
+export const EDGE_TYPES = {
+  CUSTOM: 'custom',
+  STRAIGHT: 'straight-edge',
+  OPERATOR_AVOID: 'operator-avoid-edge',
+} as const;
+
+
+export interface ExportedFlowData {
+  version: string;
+  exportedAt: string;
+  appName: string;
+  nodes: ExportedNodeData[];
+  edges: ExportedEdgeData[];
+  viewMode: ViewMode;
+  metadata: FlowMetadata;
+}
+
+export interface FlowMetadata {
+  totalMachines: number;
+  totalOperators: number;
+  activeMachines: number;
+  warningMachines: number;
+  downMachines: number;
+  totalConnections: number;
+  operatorConnections: number;
+  machineConnections: number;
+}
+
+export interface ExportedNodeData {
+  id: string;
+  type: 'machine' | 'operator';
+  label: string;
+  position: {
+    x: number;
+    y: number;
+  };
+  // Machine-specific
+  status?: 'active' | 'idle' | 'warning' | 'down';
+  throughput?: number;
+  capacity?: number;
+  templateId?: string;
+  frameRotation?: number;
+  // Operator-specific
+  operatorId?: number;
+  process?: number;
+  color?: string;
+  chairDesign?: any;
+  // Handle config
+  handles?: HandleConfig;
+  // Dimension (untuk rendering)
+  width?: number;
+  height?: number;
+}
+
+export interface ExportedEdgeData {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle: string;
+  targetHandle: string;
+  type: 'machine' | 'operator' | 'mixed';
+  style: {
+    stroke: string;
+    strokeWidth: number;
+    strokeDasharray?: string;
+    animated?: boolean;
+  };
+  label?: string;
+  operatorId?: number;
+}
+
+/**
+ * Props untuk komponen embeddable
+ */
+export interface EmbeddableFlowProps {
+  data: ExportedFlowData;
+  width?: number | string;
+  height?: number | string;
+  readOnly?: boolean;
+  showControls?: boolean;
+  showMiniMap?: boolean;
+  showBackground?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+  onNodeClick?: (nodeId: string, nodeData: ExportedNodeData) => void;
+  onEdgeClick?: (edgeId: string, edgeData: ExportedEdgeData) => void;
+}
+
+/**
+ * Konfigurasi untuk export
+ */
+export interface ExportConfig {
+  includeTemplates: boolean;
+  includeMetadata: boolean;
+  prettyPrint: boolean;
+  embedMode: boolean; // Jika true, output dalam format embeddable component
+  fileName?: string;
 }

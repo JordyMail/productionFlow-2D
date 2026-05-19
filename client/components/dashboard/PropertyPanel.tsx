@@ -403,6 +403,195 @@ const PropertyPanel = () => {
             {/* Handle Controls */}
             {renderHandleControls()}
 
+            {/* Chair Design Section - Hanya tampil di mode shapes */}
+            {viewMode === 'shapes' && (
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <Label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 11V9a6 6 0 0 1 12 0v2" />
+                    <path d="M6 11h12v7a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-7z" />
+                    <path d="M8 20v-2h8v2" />
+                  </svg>
+                  Chair Design
+                </Label>
+
+                {/* Enable/Disable Chair */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-slate-600">Enable Chair Design</Label>
+                  <Switch
+                    checked={operatorData.chairDesign?.enabled !== false}
+                    onCheckedChange={(checked) => {
+                      const currentChair = operatorData.chairDesign || {
+                        enabled: true,
+                        chairColor: operatorData.color || '#a855f7',
+                        showIdInChair: true,
+                        showProcessInChair: true,
+                        chairWidth: 80,
+                        chairHeight: 100,
+                        seatDepth: 45,
+                        backrestHeight: 55,
+                      };
+                      updateNodeData(selectedNode.id, {
+                        chairDesign: { ...currentChair, enabled: checked }
+                      });
+                    }}
+                  />
+                </div>
+
+                {operatorData.chairDesign?.enabled !== false && (
+                  <>
+                    {/* Chair Color */}
+                    <div>
+                      <Label className="text-xs text-slate-500 mb-1 block">Chair Color</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={operatorData.chairDesign?.chairColor || operatorData.color || '#a855f7'}
+                          onChange={(e) => {
+                            const currentChair = operatorData.chairDesign || {
+                              enabled: true,
+                              showIdInChair: true,
+                              showProcessInChair: true,
+                              chairWidth: 80,
+                              chairHeight: 100,
+                              seatDepth: 45,
+                              backrestHeight: 55,
+                            };
+                            updateNodeData(selectedNode.id, {
+                              chairDesign: { ...currentChair, chairColor: e.target.value }
+                            });
+                          }}
+                          className="w-10 h-8 border rounded cursor-pointer"
+                        />
+                        <Input
+                          value={operatorData.chairDesign?.chairColor || operatorData.color || '#a855f7'}
+                          onChange={(e) => {
+                            const currentChair = operatorData.chairDesign || {
+                              enabled: true,
+                              showIdInChair: true,
+                              showProcessInChair: true,
+                              chairWidth: 80,
+                              chairHeight: 100,
+                              seatDepth: 45,
+                              backrestHeight: 55,
+                            };
+                            updateNodeData(selectedNode.id, {
+                              chairDesign: { ...currentChair, chairColor: e.target.value }
+                            });
+                          }}
+                          className="flex-1 h-8 text-sm font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Show ID/Process Toggles */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-slate-600">Show ID</Label>
+                        <Switch
+                          checked={operatorData.chairDesign?.showIdInChair !== false}
+                          onCheckedChange={(checked) => {
+                            const currentChair = operatorData.chairDesign || {
+                              enabled: true,
+                              chairColor: operatorData.color || '#a855f7',
+                              chairWidth: 80,
+                              chairHeight: 100,
+                              seatDepth: 45,
+                              backrestHeight: 55,
+                            };
+                            updateNodeData(selectedNode.id, {
+                              chairDesign: { ...currentChair, showIdInChair: checked }
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-slate-600">Show Process</Label>
+                        <Switch
+                          checked={operatorData.chairDesign?.showProcessInChair !== false}
+                          onCheckedChange={(checked) => {
+                            const currentChair = operatorData.chairDesign || {
+                              enabled: true,
+                              chairColor: operatorData.color || '#a855f7',
+                              chairWidth: 80,
+                              chairHeight: 100,
+                              seatDepth: 45,
+                              backrestHeight: 55,
+                            };
+                            updateNodeData(selectedNode.id, {
+                              chairDesign: { ...currentChair, showProcessInChair: checked }
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chair Dimensions */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-500">Chair Dimensions</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] text-slate-400">Width</Label>
+                          <Input
+                            type="number"
+                            value={operatorData.chairDesign?.chairWidth || 80}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val) && val >= 40 && val <= 200) {
+                                const currentChair = operatorData.chairDesign || {};
+                                updateNodeData(selectedNode.id, {
+                                  chairDesign: { ...currentChair, enabled: currentChair.enabled !== false, chairWidth: val }
+                                });
+                              }
+                            }}
+                            className="h-8 text-sm"
+                            min={40}
+                            max={200}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-400">Height</Label>
+                          <Input
+                            type="number"
+                            value={operatorData.chairDesign?.chairHeight || 100}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val) && val >= 60 && val <= 250) {
+                                const currentChair = operatorData.chairDesign || {};
+                                updateNodeData(selectedNode.id, {
+                                  chairDesign: { ...currentChair, enabled: currentChair.enabled !== false, chairHeight: val }
+                                });
+                              }
+                            }}
+                            className="h-8 text-sm"
+                            min={60}
+                            max={250}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Preview Chair */}
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-400 mb-2">Preview</p>
+                      <div className="flex items-center justify-center">
+                        <svg width="60" height="70" viewBox="0 0 80 100" xmlns="http://www.w3.org/2000/svg">
+                          {/* Simplified chair preview */}
+                          <rect x="15" y="40" width="50" height="8" rx="3" fill={operatorData.chairDesign?.chairColor || operatorData.color || '#a855f7'} />
+                          <rect x="18" y="5" width="44" height="37" rx="3" fill={`${operatorData.chairDesign?.chairColor || operatorData.color || '#a855f7'}cc`} />
+                          <rect x="20" y="48" width="5" height="20" rx="1" fill="#6b7280" />
+                          <rect x="55" y="48" width="5" height="20" rx="1" fill="#6b7280" />
+                          <circle cx="40" cy="23" r="10" fill="white" stroke={operatorData.chairDesign?.chairColor || operatorData.color || '#a855f7'} strokeWidth="1.5" />
+                          <text x="40" y="21" textAnchor="middle" fill={operatorData.chairDesign?.chairColor || operatorData.color || '#a855f7'} fontSize="8" fontWeight="bold">ID</text>
+                          <text x="40" y="29" textAnchor="middle" fill={operatorData.chairDesign?.chairColor || operatorData.color || '#a855f7'} fontSize="6">P</text>
+                        </svg>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Info panel about connections */}
             <div className="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
               <div className="flex items-center gap-2 mb-2">

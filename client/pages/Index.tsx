@@ -24,7 +24,7 @@ export default function Index() {
   // Auto-save every 30 seconds (optional)
   useEffect(() => {
     const cleanup = setupAutoSave(30000); // 30 seconds
-    return () => cleanup;
+    return cleanup;
   }, []);
 
   return (

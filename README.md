@@ -28,3 +28,16 @@ TODO:
 
 Email Me if you want to contribute... </br>
 check my github profile
+
+
+# 1. Install dependency baru
+pnpm install
+
+# 2. Setup .env dengan kredensial SQL Server Anda
+# Edit file .env
+
+# 3. Jalankan migrasi database
+node server/db/migrate.js
+
+# 4. Jalankan aplikasi
+pnpm dev
