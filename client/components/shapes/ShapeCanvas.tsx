@@ -32,6 +32,25 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
   const [rotateStartAngle, setRotateStartAngle] = useState(0);
   const [hoveredHandle, setHoveredHandle] = useState<string | null>(null);
 
+  // Tambahkan useEffect untuk logging dan force re-render
+  useEffect(() => {
+    console.log('[ShapeCanvas] Mounted/Updated with:', {
+      shapesCount: shapes.length,
+      canvasWidth: width,
+      canvasHeight: height,
+      selectedShapeId
+    });
+    
+    if (shapes.length > 0) {
+      console.log('[ShapeCanvas] Sample shape:', {
+        id: shapes[0].id,
+        type: shapes[0].type,
+        x: shapes[0].x,
+        y: shapes[0].y
+      });
+    }
+  }, [shapes, width, height, selectedShapeId]);
+
   // Type guards
   const isLine = (shape: Shape): shape is LineShape => shape.type === 'line';
   const isRectangle = (shape: Shape): shape is RectangleShape => shape.type === 'rectangle';
@@ -626,143 +645,141 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
     }
   };
 
-const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-  const canvas = canvasRef.current;
-  if (!canvas) return;
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  
-  const mouseX = (e.clientX - rect.left) * scaleX;
-  const mouseY = (e.clientY - rect.top) * scaleY;
-
-  // Update hovered handle untuk cursor change
-  if (selectedShapeId && !isDragging && !isResizing && !isRotating) {
-    const selectedShape = shapes.find(s => s.id === selectedShapeId);
-    if (selectedShape) {
-      const handle = getHandleAtPoint(mouseX, mouseY, selectedShape);
-      setHoveredHandle(handle?.id || null);
-      
-      // Change cursor based on handle type
-      if (canvas) {
-        if (handle?.type === 'rotate') {
-          canvas.style.cursor = 'grab';
-        } else if (handle?.type === 'point') {
-          canvas.style.cursor = 'move';
-        } else {
-          canvas.style.cursor = 'default';
-        }
-      }
-    }
-  } else {
-    setHoveredHandle(null);
-  }
-
-  // Handle rotating
-  if (isRotating && selectedShapeId && resizeHandle === 'rotate') {
-    const selectedShape = shapes.find(s => s.id === selectedShapeId);
-    if (selectedShape && isLine(selectedShape) && selectedShape.points) {
-      const centerX = (selectedShape.points[0] + selectedShape.points[selectedShape.points.length - 2]) / 2 + selectedShape.x;
-      const centerY = (selectedShape.points[1] + selectedShape.points[selectedShape.points.length - 1]) / 2 + selectedShape.y;
-      
-      const currentAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
-      const deltaAngle = currentAngle - rotateStartAngle;
-      
-      // Rotate line
-      const rotatedLine = rotateLine(selectedShape, deltaAngle);
-      onUpdateShape(selectedShapeId, { points: rotatedLine.points });
-      
-      setRotateStartAngle(currentAngle);
-    }
-    return;
-  }
-
-  // Handle resizing (moving line points)
-  if (isResizing && selectedShapeId && resizeHandle) {
-    const selectedShape = shapes.find(s => s.id === selectedShapeId);
-    if (selectedShape && isLine(selectedShape) && selectedShape.points) {
-      const pointIndex = parseInt(resizeHandle.split('-')[1]);
-      
-      if (!isNaN(pointIndex)) {
-        const newPoints = [...selectedShape.points];
-        
-        // Hitung posisi baru relatif terhadap shape origin
-        const relativeX = mouseX - selectedShape.x;
-        const relativeY = mouseY - selectedShape.y;
-        
-        // Smooth movement - langsung update tanpa snap dulu
-        newPoints[pointIndex] = relativeX;
-        newPoints[pointIndex + 1] = relativeY;
-        
-        onUpdateShape(selectedShapeId, { points: newPoints });
-      }
-    }
-    return;
-  }
-
-  // Handle dragging seluruh shape
-  if (!isDragging || !selectedShapeId) return;
-
-  const deltaX = mouseX - dragStart.x;
-  const deltaY = mouseY - dragStart.y;
-
-  const selectedShape = shapes.find(s => s.id === selectedShapeId);
-  if (!selectedShape) return;
-
-  // Update posisi - smooth tanpa snap dulu
-  const newX = selectedShape.x + deltaX;
-  const newY = selectedShape.y + deltaY;
-
-  onUpdateShape(selectedShapeId, {
-    x: newX,
-    y: newY
-  });
-
-  setDragStart({ x: mouseX, y: mouseY });
-};
-
-
-
-const snapToGrid = (value: number, gridSize: number = 10): number => {
-  return Math.round(value / gridSize) * gridSize;
-};
-
-// Update handleMouseUp
-const handleMouseUp = () => {
-  if (selectedShapeId && (isDragging || isResizing)) {
-    const selectedShape = shapes.find(s => s.id === selectedShapeId);
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     
-    if (selectedShape) {
-      if (isDragging) {
-        // Snap posisi ke grid setelah drag selesai
-        const snappedX = snapToGrid(selectedShape.x);
-        const snappedY = snapToGrid(selectedShape.y);
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
+
+    // Update hovered handle untuk cursor change
+    if (selectedShapeId && !isDragging && !isResizing && !isRotating) {
+      const selectedShape = shapes.find(s => s.id === selectedShapeId);
+      if (selectedShape) {
+        const handle = getHandleAtPoint(mouseX, mouseY, selectedShape);
+        setHoveredHandle(handle?.id || null);
         
-        if (snappedX !== selectedShape.x || snappedY !== selectedShape.y) {
-          onUpdateShape(selectedShapeId, {
-            x: snappedX,
-            y: snappedY
-          });
+        // Change cursor based on handle type
+        if (canvas) {
+          if (handle?.type === 'rotate') {
+            canvas.style.cursor = 'grab';
+          } else if (handle?.type === 'point') {
+            canvas.style.cursor = 'move';
+          } else {
+            canvas.style.cursor = 'default';
+          }
         }
-      } else if (isResizing && isLine(selectedShape) && selectedShape.points) {
-        // Snap points ke grid setelah resize selesai
-        const pointIndex = parseInt(resizeHandle?.split('-')[1] || '0');
+      }
+    } else {
+      setHoveredHandle(null);
+    }
+
+    // Handle rotating
+    if (isRotating && selectedShapeId && resizeHandle === 'rotate') {
+      const selectedShape = shapes.find(s => s.id === selectedShapeId);
+      if (selectedShape && isLine(selectedShape) && selectedShape.points) {
+        const centerX = (selectedShape.points[0] + selectedShape.points[selectedShape.points.length - 2]) / 2 + selectedShape.x;
+        const centerY = (selectedShape.points[1] + selectedShape.points[selectedShape.points.length - 1]) / 2 + selectedShape.y;
+        
+        const currentAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
+        const deltaAngle = currentAngle - rotateStartAngle;
+        
+        // Rotate line
+        const rotatedLine = rotateLine(selectedShape, deltaAngle);
+        onUpdateShape(selectedShapeId, { points: rotatedLine.points });
+        
+        setRotateStartAngle(currentAngle);
+      }
+      return;
+    }
+
+    // Handle resizing (moving line points)
+    if (isResizing && selectedShapeId && resizeHandle) {
+      const selectedShape = shapes.find(s => s.id === selectedShapeId);
+      if (selectedShape && isLine(selectedShape) && selectedShape.points) {
+        const pointIndex = parseInt(resizeHandle.split('-')[1]);
+        
         if (!isNaN(pointIndex)) {
           const newPoints = [...selectedShape.points];
-          newPoints[pointIndex] = snapToGrid(newPoints[pointIndex]);
-          newPoints[pointIndex + 1] = snapToGrid(newPoints[pointIndex + 1]);
+          
+          // Hitung posisi baru relatif terhadap shape origin
+          const relativeX = mouseX - selectedShape.x;
+          const relativeY = mouseY - selectedShape.y;
+          
+          // Smooth movement - langsung update tanpa snap dulu
+          newPoints[pointIndex] = relativeX;
+          newPoints[pointIndex + 1] = relativeY;
+          
           onUpdateShape(selectedShapeId, { points: newPoints });
         }
       }
+      return;
     }
-  }
-  
-  setIsDragging(false);
-  setIsResizing(false);
-  setIsRotating(false);
-  setResizeHandle(null);
-};
+
+    // Handle dragging seluruh shape
+    if (!isDragging || !selectedShapeId) return;
+
+    const deltaX = mouseX - dragStart.x;
+    const deltaY = mouseY - dragStart.y;
+
+    const selectedShape = shapes.find(s => s.id === selectedShapeId);
+    if (!selectedShape) return;
+
+    // Update posisi - smooth tanpa snap dulu
+    const newX = selectedShape.x + deltaX;
+    const newY = selectedShape.y + deltaY;
+
+    onUpdateShape(selectedShapeId, {
+      x: newX,
+      y: newY
+    });
+
+    setDragStart({ x: mouseX, y: mouseY });
+  };
+
+  const snapToGrid = (value: number, gridSize: number = 10): number => {
+    return Math.round(value / gridSize) * gridSize;
+  };
+
+  // Update handleMouseUp
+  const handleMouseUp = () => {
+    if (selectedShapeId && (isDragging || isResizing)) {
+      const selectedShape = shapes.find(s => s.id === selectedShapeId);
+      
+      if (selectedShape) {
+        if (isDragging) {
+          // Snap posisi ke grid setelah drag selesai
+          const snappedX = snapToGrid(selectedShape.x);
+          const snappedY = snapToGrid(selectedShape.y);
+          
+          if (snappedX !== selectedShape.x || snappedY !== selectedShape.y) {
+            onUpdateShape(selectedShapeId, {
+              x: snappedX,
+              y: snappedY
+            });
+          }
+        } else if (isResizing && isLine(selectedShape) && selectedShape.points) {
+          // Snap points ke grid setelah resize selesai
+          const pointIndex = parseInt(resizeHandle?.split('-')[1] || '0');
+          if (!isNaN(pointIndex)) {
+            const newPoints = [...selectedShape.points];
+            newPoints[pointIndex] = snapToGrid(newPoints[pointIndex]);
+            newPoints[pointIndex + 1] = snapToGrid(newPoints[pointIndex + 1]);
+            onUpdateShape(selectedShapeId, { points: newPoints });
+          }
+        }
+      }
+    }
+    
+    setIsDragging(false);
+    setIsResizing(false);
+    setIsRotating(false);
+    setResizeHandle(null);
+  };
 
   const handleMouseLeave = () => {
     setIsDragging(false);
@@ -772,13 +789,17 @@ const handleMouseUp = () => {
     setHoveredHandle(null);
   };
 
-  
-
   return (
     <canvas
       ref={canvasRef}
       width={width}
       height={height}
+      style={{
+        width: `${width}px`,
+        height: `${height}px`,
+        display: 'block',
+        backgroundColor: '#ffffff', // Tambahkan background putih untuk testing
+      }}
       className={cn(
         "cursor-default",
         isDragging && "cursor-move",

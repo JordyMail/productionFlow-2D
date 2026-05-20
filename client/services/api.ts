@@ -131,16 +131,30 @@ export async function duplicateTemplate(
 
 /**
  * Check database health
+ * ✅ FIXED: Menggunakan endpoint yang benar (/api/health) bukan /api/templates/health
  */
 export async function checkDatabaseHealth(): Promise<{ connected: boolean }> {
   try {
-    return await apiFetch<{ connected: boolean }>('/templates/health');
+    // Coba ke endpoint health check yang benar
+    const response = await fetch(`${API_BASE_URL}/health`);
+    
+    if (!response.ok) {
+      console.warn('[API] Health check endpoint returned:', response.status);
+      // Fallback: coba cek dengan fetch templates (limit 1)
+      const templatesResponse = await fetch(`${API_BASE_URL}/templates?limit=1`);
+      if (templatesResponse.ok) {
+        return { connected: true };
+      }
+      return { connected: false };
+    }
+    
+    const result = await response.json();
+    return { connected: result?.status === 'ok' || result?.connected === true };
   } catch (error: any) {
     console.error('[API] checkDatabaseHealth error:', error.message);
     return { connected: false };
   }
 }
-
 
 // =============================================
 // Flow Save API

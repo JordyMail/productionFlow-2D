@@ -14,12 +14,21 @@ import ShapeOperatorNode from './ShapeOperatorNode';
 import SaveLoadPanel from './SaveLoadPanel';
 import UndoRedoIndicator from './UndoRedoIndicator';
 import { useStore } from '@/store/useStore';
-import { Settings, Info } from 'lucide-react';
+import { Info, EyeOff } from 'lucide-react';
 import ViewModeToggle from './ViewModeToggle';
 import SmartAvoidEdge from './SmartAvoidEdge';
 import FlowExporter from '@/components/export/FlowExporter';
-import SaveToDatabaseDialog from './SaveToDatabaseDialog'; // ✅ NEW IMPORT
+import SaveToDatabaseDialog from './SaveToDatabaseDialog';
+import LineSelector from './LineSelector';
+import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
+// ✅ PASTIKAN nodeTypes didefinisikan dengan BENAR
 const nodeTypes = {
   machineNode: MachineNode,
   shapeMachineNode: ShapeMachineNode,
@@ -41,10 +50,28 @@ const FlowCanvas = () => {
     setSelectedNodeId,
     pushToHistory,
     viewMode,
-    getNodeTemplate
+    getNodeTemplate,
+    isToolsHidden,
+    setIsToolsHidden,
   } = useStore();
 
   const nodeChangesTimer = useRef<NodeJS.Timeout>();
+
+  // Keyboard shortcut: Ctrl+Shift+H — toggle hide tools
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === 'h'
+      ) {
+        e.preventDefault();
+        setIsToolsHidden(!useStore.getState().isToolsHidden);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setIsToolsHidden]);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: any) => {
@@ -62,7 +89,7 @@ const FlowCanvas = () => {
     if (viewMode === 'default') {
       return nodes;
     } else {
-      return nodes.map(node => {
+      return nodes.map((node) => {
         if (node.type === 'operatorNode') {
           return {
             ...node,
@@ -78,30 +105,30 @@ const FlowCanvas = () => {
                 chairHeight: 100,
                 seatDepth: 45,
                 backrestHeight: 55,
-              }
-            }
+              },
+            },
           };
         }
-        
+
         if (node.type === 'machineNode' || node.type === 'shapeMachineNode') {
           return {
             ...node,
             type: 'shapeMachineNode',
             data: {
               ...node.data,
-              template: getNodeTemplate(node.id)
-            }
+              template: getNodeTemplate(node.id),
+            },
           };
         }
-        
+
         return node;
       });
     }
   }, [nodes, viewMode, getNodeTemplate]);
 
-  // Process edges dengan data nodes untuk deteksi obstacle
+  // Process edges with node data for obstacle detection
   const processedEdges = useMemo(() => {
-    return edges.map(edge => ({
+    return edges.map((edge) => ({
       ...edge,
       type: 'smart-avoid',
       data: {
@@ -116,11 +143,11 @@ const FlowCanvas = () => {
   const onNodesChangeWithHistory = useCallback(
     (changes: any) => {
       onNodesChange(changes);
-      
+
       if (nodeChangesTimer.current) {
         clearTimeout(nodeChangesTimer.current);
       }
-      
+
       nodeChangesTimer.current = setTimeout(() => {
         pushToHistory('Node position changed');
       }, 500);
@@ -142,7 +169,7 @@ const FlowCanvas = () => {
   }, []);
 
   return (
-    <div 
+    <div
       className="w-full h-full bg-slate-50 relative"
       onContextMenu={onContextMenu}
     >
@@ -169,49 +196,81 @@ const FlowCanvas = () => {
         }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
+
+        {/* Controls (zoom in/out) — always visible */}
         <Controls showInteractive={false} className="fill-slate-700" />
-        <MiniMap 
-          nodeColor={(n) => {
-            if (n.type === 'operatorNode' || n.type === 'shapeOperatorNode') {
-              return (n.data as any).color || '#a855f7';
-            }
-            if (n.data?.status === 'active') return '#22c55e';
-            if (n.data?.status === 'warning') return '#f59e0b';
-            if (n.data?.status === 'down') return '#ef4444';
-            return '#94a3b8';
-          }}
-          maskColor="rgba(241, 245, 249, 0.7)"
-          className="border-slate-200"
-        />
-        
-        {/* ============================================ */}
-        {/* TOP-RIGHT PANEL - Semua Tombol Aksi */}
-        {/* ============================================ */}
-        <Panel position="top-right" className="flex items-center gap-2">
-          {/* View Mode Toggle: Default | Shapes */}
-          <ViewModeToggle />
-          
-          {/* Save/Load: LocalStorage, Export/Import File */}
-          <SaveLoadPanel />
-          
-          {/* Export/Embed: JSON Download, Embed Code */}
-          <FlowExporter />
-          
-          {/* ✅ SAVE TO DATABASE BUTTON - INI YANG BARU */}
-          <SaveToDatabaseDialog />
-          
-          {/* Live Indicator */}
-          <div className="bg-white/80 backdrop-blur-sm p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              LIVE
+
+        {/* MiniMap — hidden when tools hidden */}
+        {!isToolsHidden && (
+          <MiniMap
+            nodeColor={(n) => {
+              if (n.type === 'operatorNode' || n.type === 'shapeOperatorNode') {
+                return (n.data as any).color || '#a855f7';
+              }
+              if (n.data?.status === 'active') return '#22c55e';
+              if (n.data?.status === 'warning') return '#f59e0b';
+              if (n.data?.status === 'down') return '#ef4444';
+              return '#94a3b8';
+            }}
+            maskColor="rgba(241, 245, 249, 0.7)"
+            className="border-slate-200"
+          />
+        )}
+
+        {/* TOP-RIGHT PANEL — hidden when tools hidden */}
+        {!isToolsHidden && (
+          <Panel position="top-right" className="flex items-center gap-2">
+            {/* Line Selector from Database */}
+            <LineSelector />
+
+            {/* View Mode Toggle */}
+            <ViewModeToggle />
+
+            {/* Save/Load */}
+            <SaveLoadPanel />
+
+            {/* Export/Embed */}
+            <FlowExporter />
+
+            {/* Save to Database */}
+            <SaveToDatabaseDialog />
+
+            {/* Hide Tools — only in shapes mode */}
+            {viewMode === 'shapes' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/80 backdrop-blur-sm border-slate-200 hover:bg-white gap-2"
+                      onClick={() => setIsToolsHidden(true)}
+                    >
+                      <EyeOff size={16} className="text-slate-500" />
+                      <span className="text-xs font-medium">Hide Tools</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="text-xs">Ctrl+Shift+H</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
+            {/* Live Indicator */}
+            <div className="bg-white/80 backdrop-blur-sm p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                LIVE
+              </div>
+              <Info size={14} className="text-slate-400" />
             </div>
-            <Info size={14} className="text-slate-400" />
-          </div>
-        </Panel>
+          </Panel>
+        )}
       </ReactFlow>
 
-      <UndoRedoIndicator />
+      {/* UndoRedoIndicator — hidden when tools hidden */}
+      {!isToolsHidden && <UndoRedoIndicator />}
     </div>
   );
 };

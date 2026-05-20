@@ -268,6 +268,55 @@ const ShapeEditor = () => {
     }
   };
 
+  // === EMBED MODE HANDLER (Letakkan setelah deklarasi state) ===
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isEmbed = params.get('embed') === 'true';
+    const viewMode = params.get('view') || 'shapes';
+
+    if (!isEmbed) return;
+
+    // Clean embed mode
+    document.body.style.background = 'transparent';
+    document.documentElement.style.setProperty('--sidebar-width', '0px');
+
+    const hideUI = () => {
+      const selectorsToHide = [
+        'header',
+        'nav',
+        '.sidebar',
+        '.property-panel',
+        '.top-bar',
+        '[data-testid="navbar"]',
+        '[data-testid="save-button"]',
+        '.tabs-list',           // Tabs Library
+        '.p-4.border-t',        // Save button area
+        '.h-12.border-b',       // Toolbar atas
+      ];
+
+      selectorsToHide.forEach(selector => {
+        document.querySelectorAll(selector).forEach((el: any) => {
+          if (el) el.style.display = 'none';
+        });
+      });
+
+      // Force shapes mode
+      if (viewMode === 'shapes' && useStore.getState().setViewMode) {
+        useStore.getState().setViewMode('shapes');
+      }
+    };
+
+    // Jalankan beberapa kali karena React rendering
+    hideUI();
+    const timeout1 = setTimeout(hideUI, 300);
+    const timeout2 = setTimeout(hideUI, 800);
+
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+    };
+  }, []);
+
   // Load template berdasarkan ID
   useEffect(() => {
     if (templateId && templateId !== 'new') {

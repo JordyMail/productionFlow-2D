@@ -1,21 +1,21 @@
 // client/components/flow/SaveLoadPanel.tsx
 import React, { useState, useRef } from 'react';
-import { 
-  Save, 
-  Upload, 
-  Download, 
-  Trash2, 
+import {
+  Save,
+  Upload,
+  Download,
+  Trash2,
   Clock,
   CheckCircle,
-  AlertCircle,
   FileJson,
   HardDrive,
   X,
   Link2,
-  Network
+  Network,
+  AlertCircle,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -39,54 +39,93 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+
 const SaveLoadPanel = () => {
-  const { 
-    saveToLocalStorage, 
-    loadFromLocalStorage, 
-    exportToFile, 
-    importFromFile, 
+  const {
+    saveToLocalStorage,
+    loadFromLocalStorage,
+    exportToFile,
+    importFromFile,
     clearAll,
     lastSaved,
     nodes,
     edges,
-    deleteEdge
+    deleteEdge,
   } = useStore();
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [showEdgeList, setShowEdgeList] = useState(false);
 
   const handleSave = () => {
     const success = saveToLocalStorage();
     if (success) {
       toast({
-        title: "Saved successfully",
+        title: 'Saved successfully',
         description: `Flow saved to browser storage at ${new Date().toLocaleTimeString()}`,
         duration: 3000,
       });
     } else {
       toast({
-        title: "Save failed",
-        description: "Could not save to localStorage",
-        variant: "destructive",
+        title: 'Save failed',
+        description: 'Could not save to localStorage',
+        variant: 'destructive',
         duration: 3000,
       });
     }
   };
 
+  // Load from browser with 30-minute validity check
   const handleLoad = () => {
-    const success = loadFromLocalStorage();
-    if (success) {
+    try {
+      const savedData = localStorage.getItem('flow2d-save');
+      if (!savedData) {
+        toast({
+          title: 'No saved data found',
+          description: 'There is no saved flow in browser storage',
+          variant: 'destructive',
+          duration: 3000,
+        });
+        return;
+      }
+
+      const flowData = JSON.parse(savedData);
+      const savedTime = flowData.timestamp
+        ? new Date(flowData.timestamp).getTime()
+        : 0;
+      const elapsed = Date.now() - savedTime;
+
+      if (elapsed > THIRTY_MINUTES_MS) {
+        const minutesAgo = Math.round(elapsed / 60000);
+        toast({
+          title: 'Browser data expired',
+          description: `Saved data is ${minutesAgo} minutes old (limit: 30 min). Please load from database instead.`,
+          variant: 'destructive',
+          duration: 5000,
+        });
+        return;
+      }
+
+      const success = loadFromLocalStorage();
+      if (success) {
+        toast({
+          title: 'Loaded successfully',
+          description: 'Flow restored from browser storage',
+          duration: 3000,
+        });
+      } else {
+        toast({
+          title: 'No saved data found',
+          description: 'There is no valid flow in browser storage',
+          variant: 'destructive',
+          duration: 3000,
+        });
+      }
+    } catch {
       toast({
-        title: "Loaded successfully",
-        description: "Flow restored from browser storage",
-        duration: 3000,
-      });
-    } else {
-      toast({
-        title: "No saved data found",
-        description: "There is no saved flow in browser storage",
-        variant: "destructive",
+        title: 'Load failed',
+        description: 'Could not read browser storage',
+        variant: 'destructive',
         duration: 3000,
       });
     }
@@ -95,17 +134,17 @@ const SaveLoadPanel = () => {
   const handleExport = () => {
     if (nodes.length === 0) {
       toast({
-        title: "Nothing to export",
-        description: "Add some machines first before exporting",
-        variant: "destructive",
+        title: 'Nothing to export',
+        description: 'Add some machines first before exporting',
+        variant: 'destructive',
         duration: 3000,
       });
       return;
     }
     exportToFile();
     toast({
-      title: "Export started",
-      description: "Your file is being downloaded",
+      title: 'Export started',
+      description: 'Your file is being downloaded',
       duration: 3000,
     });
   };
@@ -122,15 +161,15 @@ const SaveLoadPanel = () => {
     try {
       await importFromFile(file);
       toast({
-        title: "Import successful",
+        title: 'Import successful',
         description: `Loaded ${file.name}`,
         duration: 3000,
       });
     } catch (error) {
       toast({
-        title: "Import failed",
-        description: error instanceof Error ? error.message : "Invalid file format",
-        variant: "destructive",
+        title: 'Import failed',
+        description: error instanceof Error ? error.message : 'Invalid file format',
+        variant: 'destructive',
         duration: 3000,
       });
     } finally {
@@ -144,39 +183,36 @@ const SaveLoadPanel = () => {
   const handleClear = () => {
     if (nodes.length === 0 && edges.length === 0) {
       toast({
-        title: "Canvas already empty",
-        description: "No nodes or edges to clear",
+        title: 'Canvas already empty',
+        description: 'No nodes or edges to clear',
         duration: 3000,
       });
       return;
     }
 
-    // Tanyakan konfirmasi
     if (window.confirm('Are you sure you want to clear all nodes and connections?')) {
       clearAll();
       toast({
-        title: "Canvas cleared",
-        description: "All nodes and connections have been removed",
+        title: 'Canvas cleared',
+        description: 'All nodes and connections have been removed',
         duration: 3000,
       });
-      setShowEdgeList(false); // Close edge list after clearing
     }
   };
 
   const handleDeleteEdge = (edgeId: string) => {
-    // Cari edge yang akan dihapus untuk mendapatkan detailnya
-    const edgeToDelete = edges.find(e => e.id === edgeId);
-    const sourceNode = edgeToDelete ? nodes.find(n => n.id === edgeToDelete.source) : null;
-    const targetNode = edgeToDelete ? nodes.find(n => n.id === edgeToDelete.target) : null;
-    
+    const edgeToDelete = edges.find((e) => e.id === edgeId);
+    const sourceNode = edgeToDelete ? nodes.find((n) => n.id === edgeToDelete.source) : null;
+    const targetNode = edgeToDelete ? nodes.find((n) => n.id === edgeToDelete.target) : null;
+
     const sourceLabel = sourceNode?.data.label || sourceNode?.id.substring(0, 8);
     const targetLabel = targetNode?.data.label || targetNode?.id.substring(0, 8);
-    
-    if (confirm(`Are you sure you want to delete connection between ${sourceLabel} and ${targetLabel}?`)) {
+
+    if (confirm(`Delete connection between ${sourceLabel} and ${targetLabel}?`)) {
       deleteEdge(edgeId);
       toast({
-        title: "Connection deleted",
-        description: "The edge has been removed",
+        title: 'Connection deleted',
+        description: 'The edge has been removed',
         duration: 3000,
       });
     }
@@ -185,37 +221,51 @@ const SaveLoadPanel = () => {
   const handleDeleteAllEdges = () => {
     if (edges.length === 0) {
       toast({
-        title: "No connections",
-        description: "There are no edges to delete",
+        title: 'No connections',
+        description: 'There are no edges to delete',
         duration: 3000,
       });
       return;
     }
 
-    if (confirm(`Are you sure you want to delete all ${edges.length} connections?`)) {
-      // Hapus semua edges satu per satu
-      edges.forEach(edge => {
-        deleteEdge(edge.id);
-      });
+    if (confirm(`Delete all ${edges.length} connections?`)) {
+      edges.forEach((edge) => deleteEdge(edge.id));
       toast({
-        title: "All connections deleted",
+        title: 'All connections deleted',
         description: `${edges.length} edges have been removed`,
         duration: 3000,
       });
-      setShowEdgeList(false);
     }
   };
 
-  // Hitung jumlah edges berdasarkan tipe
-  const machineEdges = edges.filter(edge => {
-    const sourceNode = nodes.find(n => n.id === edge.source);
-    const targetNode = nodes.find(n => n.id === edge.target);
+  // Check if browser data is still valid (within 30 min)
+  const getBrowserDataAge = (): { valid: boolean; minutesAgo: number } => {
+    try {
+      const savedData = localStorage.getItem('flow2d-save');
+      if (!savedData) return { valid: false, minutesAgo: 0 };
+      const flowData = JSON.parse(savedData);
+      const savedTime = flowData.timestamp ? new Date(flowData.timestamp).getTime() : 0;
+      const elapsed = Date.now() - savedTime;
+      return {
+        valid: elapsed <= THIRTY_MINUTES_MS,
+        minutesAgo: Math.round(elapsed / 60000),
+      };
+    } catch {
+      return { valid: false, minutesAgo: 0 };
+    }
+  };
+
+  const browserDataAge = getBrowserDataAge();
+
+  const machineEdges = edges.filter((edge) => {
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    const targetNode = nodes.find((n) => n.id === edge.target);
     return sourceNode?.type !== 'operatorNode' && targetNode?.type !== 'operatorNode';
   });
 
-  const operatorEdges = edges.filter(edge => {
-    const sourceNode = nodes.find(n => n.id === edge.source);
-    const targetNode = nodes.find(n => n.id === edge.target);
+  const operatorEdges = edges.filter((edge) => {
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    const targetNode = nodes.find((n) => n.id === edge.target);
     return sourceNode?.type === 'operatorNode' && targetNode?.type === 'operatorNode';
   });
 
@@ -230,11 +280,11 @@ const SaveLoadPanel = () => {
         accept=".json"
         className="hidden"
       />
-      
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             className="bg-white/80 backdrop-blur-sm border-slate-200 hover:bg-white gap-2"
           >
@@ -242,36 +292,58 @@ const SaveLoadPanel = () => {
             <span className="text-xs font-medium">Save/Load</span>
           </Button>
         </DropdownMenuTrigger>
-        
+
         <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Data Management
           </DropdownMenuLabel>
-          
+
           <DropdownMenuItem onClick={handleSave} className="gap-2 cursor-pointer">
             <Save size={14} className="text-slate-500" />
             <span>Save to Browser</span>
           </DropdownMenuItem>
-          
-          <DropdownMenuItem onClick={handleLoad} className="gap-2 cursor-pointer">
-            <Upload size={14} className="text-slate-500" />
-            <span>Load from Browser</span>
+
+          <DropdownMenuItem
+            onClick={handleLoad}
+            className="gap-2 cursor-pointer"
+            disabled={!browserDataAge.valid}
+          >
+            <Upload size={14} className={browserDataAge.valid ? 'text-slate-500' : 'text-slate-300'} />
+            <span className="flex-1">Load from Browser</span>
+            {browserDataAge.valid ? (
+              <span className="text-[9px] text-green-600 font-medium">
+                {browserDataAge.minutesAgo}m ago
+              </span>
+            ) : (
+              <span className="text-[9px] text-slate-300 font-medium">expired</span>
+            )}
           </DropdownMenuItem>
-          
+
+          {!browserDataAge.valid && (
+            <div className="px-2 py-1.5 mx-1 mb-1 bg-amber-50 rounded text-[10px] text-amber-600 flex items-start gap-1.5">
+              <AlertCircle size={11} className="flex-shrink-0 mt-0.5" />
+              <span>Browser data older than 30 min. Use database.</span>
+            </div>
+          )}
+
           <DropdownMenuSeparator />
-          
+
           <DropdownMenuItem onClick={handleExport} className="gap-2 cursor-pointer">
             <Download size={14} className="text-slate-500" />
             <span>Export to File</span>
           </DropdownMenuItem>
-          
-          <DropdownMenuItem onClick={handleImportClick} className="gap-2 cursor-pointer" disabled={isImporting}>
+
+          <DropdownMenuItem
+            onClick={handleImportClick}
+            className="gap-2 cursor-pointer"
+            disabled={isImporting}
+          >
             <FileJson size={14} className="text-slate-500" />
             <span>{isImporting ? 'Importing...' : 'Import from File'}</span>
           </DropdownMenuItem>
-          
+
           <DropdownMenuSeparator />
-          
+
           {/* Connections Management Submenu */}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="gap-2 cursor-pointer">
@@ -288,8 +360,7 @@ const SaveLoadPanel = () => {
                 <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                   Connections ({edges.length})
                 </DropdownMenuLabel>
-                
-                {/* Stats */}
+
                 <div className="px-2 py-1.5 text-xs space-y-1 border-b border-slate-100">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Machine Connections:</span>
@@ -306,59 +377,68 @@ const SaveLoadPanel = () => {
                     </div>
                   )}
                 </div>
-                
+
                 {edges.length === 0 ? (
                   <div className="px-2 py-3 text-center text-slate-400 text-xs">
                     No connections yet
                   </div>
                 ) : (
                   <>
-                    {/* Delete All Option */}
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={handleDeleteAllEdges}
                       className="gap-2 cursor-pointer text-red-600 focus:text-red-600 border-b border-slate-100"
                     >
                       <Trash2 size={14} />
                       <span>Delete All Connections</span>
                     </DropdownMenuItem>
-                    
-                    {/* Edge List with Scroll */}
+
                     <ScrollArea className="h-48">
                       <div className="py-1">
-                        {edges.map(edge => {
-                          const sourceNode = nodes.find(n => n.id === edge.source);
-                          const targetNode = nodes.find(n => n.id === edge.target);
-                          
-                          // Determine edge type for styling
-                          const isOperatorEdge = sourceNode?.type === 'operatorNode' && targetNode?.type === 'operatorNode';
-                          const isMachineEdge = sourceNode?.type === 'machineNode' && targetNode?.type === 'machineNode';
-                          const isMixedEdge = !isOperatorEdge && !isMachineEdge;
-                          
-                          const sourceLabel = sourceNode?.data.label || sourceNode?.id.substring(0, 8);
-                          const targetLabel = targetNode?.data.label || targetNode?.id.substring(0, 8);
-                          
+                        {edges.map((edge) => {
+                          const sourceNode = nodes.find((n) => n.id === edge.source);
+                          const targetNode = nodes.find((n) => n.id === edge.target);
+
+                          const isOperatorEdge =
+                            sourceNode?.type === 'operatorNode' &&
+                            targetNode?.type === 'operatorNode';
+                          const isMachineEdge =
+                            sourceNode?.type === 'machineNode' &&
+                            targetNode?.type === 'machineNode';
+
+                          const sourceLabel =
+                            sourceNode?.data.label || sourceNode?.id.substring(0, 8);
+                          const targetLabel =
+                            targetNode?.data.label || targetNode?.id.substring(0, 8);
+
                           return (
-                            <div 
-                              key={edge.id} 
+                            <div
+                              key={edge.id}
                               className={cn(
-                                "flex items-center justify-between px-2 py-1.5 text-xs group hover:bg-slate-50",
-                                isOperatorEdge && "bg-purple-50/30"
+                                'flex items-center justify-between px-2 py-1.5 text-xs group hover:bg-slate-50',
+                                isOperatorEdge && 'bg-purple-50/30'
                               )}
                             >
                               <div className="flex items-center gap-1 min-w-0 flex-1">
-                                <Link2 size={10} className={cn(
-                                  "flex-shrink-0",
-                                  isOperatorEdge ? "text-purple-400" : 
-                                  isMachineEdge ? "text-blue-400" : 
-                                  "text-amber-400"
-                                )} />
+                                <Link2
+                                  size={10}
+                                  className={cn(
+                                    'flex-shrink-0',
+                                    isOperatorEdge
+                                      ? 'text-purple-400'
+                                      : isMachineEdge
+                                      ? 'text-blue-400'
+                                      : 'text-amber-400'
+                                  )}
+                                />
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className={cn(
-                                        "truncate max-w-[120px]",
-                                        isOperatorEdge ? "text-purple-700" : "text-slate-600"
-                                      )}>
+                                      <span
+                                        className={cn(
+                                          'truncate max-w-[120px]',
+                                          isOperatorEdge ? 'text-purple-700' : 'text-slate-600'
+                                        )}
+                                      >
                                         {sourceLabel} → {targetLabel}
                                       </span>
                                     </TooltipTrigger>
@@ -393,11 +473,11 @@ const SaveLoadPanel = () => {
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
           </DropdownMenuSub>
-          
+
           <DropdownMenuSeparator />
-          
-          <DropdownMenuItem 
-            onClick={handleClear} 
+
+          <DropdownMenuItem
+            onClick={handleClear}
             className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
           >
             <Trash2 size={14} />
@@ -411,7 +491,7 @@ const SaveLoadPanel = () => {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm flex items-center gap-2 text-xs z-50 cursor-help">
+              <div className="fixed bottom-4 right-1/4 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm flex items-center gap-2 text-xs z-50 cursor-help">
                 <Clock size={12} className="text-slate-400" />
                 <span className="text-slate-500">Last saved:</span>
                 <span className="font-medium text-slate-700">{lastSaved}</span>
@@ -425,12 +505,13 @@ const SaveLoadPanel = () => {
         </TooltipProvider>
       )}
 
-      {/* Edge count badge (optional) */}
       {edges.length > 0 && !lastSaved && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-200 shadow-sm flex items-center gap-2 text-xs z-50">
           <Network size={12} className="text-slate-400" />
           <span className="text-slate-500">{edges.length}</span>
-          <span className="text-slate-500">connection{edges.length !== 1 ? 's' : ''}</span>
+          <span className="text-slate-500">
+            connection{edges.length !== 1 ? 's' : ''}
+          </span>
         </div>
       )}
     </>

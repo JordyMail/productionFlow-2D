@@ -54,9 +54,13 @@ const Sidebar = () => {
     const x = Math.random() * 200 + 100;
     const y = Math.random() * 200 + 100;
     
+    console.log('Adding:', { type, itemType, x, y }); // Debug
+    
     if (itemType === 'operator') {
+      console.log('Calling addOperator'); // Debug
       addOperator({ x, y });
     } else {
+      console.log('Calling addNode'); // Debug
       addNode(type, { x, y });
     }
   };

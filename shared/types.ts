@@ -221,6 +221,7 @@ export const DEFAULT_CHAIR_CONFIG = {
   backrestHeight: 55,
   showIdInChair: true,
   showProcessInChair: true,
+  chairColor: '#a855f7',
 };
 
 export interface HandleConfig {
