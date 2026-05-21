@@ -6,6 +6,7 @@ import ReactFlow, {
   MiniMap,
   BackgroundVariant,
   Panel,
+  useReactFlow,
 } from 'reactflow';
 import MachineNode from './MachineNode';
 import OperatorNode from './OperatorNode';
@@ -28,7 +29,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-// ✅ PASTIKAN nodeTypes didefinisikan dengan BENAR
+// nodeTypes didefinisikan di luar komponen
 const nodeTypes = {
   machineNode: MachineNode,
   shapeMachineNode: ShapeMachineNode,
@@ -40,7 +41,11 @@ const edgeTypes = {
   'smart-avoid': SmartAvoidEdge,
 };
 
-const FlowCanvas = () => {
+interface FlowCanvasProps {
+  isEmbedMode?: boolean;
+}
+
+const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
   const {
     nodes,
     edges,
@@ -55,7 +60,31 @@ const FlowCanvas = () => {
     setIsToolsHidden,
   } = useStore();
 
+  const reactFlowInstance = useReactFlow();
   const nodeChangesTimer = useRef<NodeJS.Timeout>();
+  const hasAutoFitted = useRef(false);
+
+  // Auto fit view saat nodes berubah (untuk embed mode)
+  useEffect(() => {
+    if (isEmbedMode && nodes.length > 0 && !hasAutoFitted.current) {
+      const timer = setTimeout(() => {
+        console.log('[FlowCanvas] Auto fitting view for embed mode');
+        reactFlowInstance.fitView({ 
+          padding: 0.3,
+          duration: 300,
+          maxZoom: 1.5,
+        });
+        hasAutoFitted.current = true;
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Reset flag saat nodes berubah signifikan
+    if (nodes.length === 0) {
+      hasAutoFitted.current = false;
+    }
+  }, [isEmbedMode, nodes.length, reactFlowInstance]);
 
   // Keyboard shortcut: Ctrl+Shift+H — toggle hide tools
   useEffect(() => {
@@ -75,17 +104,21 @@ const FlowCanvas = () => {
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: any) => {
-      setSelectedNodeId(node.id);
+      if (!isEmbedMode) {
+        setSelectedNodeId(node.id);
+      }
     },
-    [setSelectedNodeId]
+    [setSelectedNodeId, isEmbedMode]
   );
 
   const onPaneClick = useCallback(() => {
-    setSelectedNodeId(null);
-  }, [setSelectedNodeId]);
+    if (!isEmbedMode) {
+      setSelectedNodeId(null);
+    }
+  }, [setSelectedNodeId, isEmbedMode]);
 
   // Transform nodes based on view mode
-  const processedNodes = React.useMemo(() => {
+  const processedNodes = useMemo(() => {
     if (viewMode === 'default') {
       return nodes;
     } else {
@@ -186,7 +219,7 @@ const FlowCanvas = () => {
         onPaneContextMenu={(e) => e.preventDefault()}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
+        fitView={!isEmbedMode} // Jangan gunakan fitView bawaan untuk embed mode
         snapToGrid
         snapGrid={[15, 15]}
         defaultEdgeOptions={{
@@ -194,14 +227,21 @@ const FlowCanvas = () => {
           animated: false,
           type: 'smart-avoid',
         }}
+        // Nonaktifkan interaksi dalam embed mode
+        nodesDraggable={!isEmbedMode}
+        nodesConnectable={!isEmbedMode}
+        elementsSelectable={!isEmbedMode}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
 
-        {/* Controls (zoom in/out) — always visible */}
-        <Controls showInteractive={false} className="fill-slate-700" />
+        {/* Controls (zoom in/out) — selalu visible */}
+        <Controls 
+          showInteractive={false} 
+          className="fill-slate-700"
+        />
 
-        {/* MiniMap — hidden when tools hidden */}
-        {!isToolsHidden && (
+        {/* MiniMap — hidden when tools hidden atau embed mode */}
+        {!isToolsHidden && !isEmbedMode && (
           <MiniMap
             nodeColor={(n) => {
               if (n.type === 'operatorNode' || n.type === 'shapeOperatorNode') {
@@ -217,25 +257,15 @@ const FlowCanvas = () => {
           />
         )}
 
-        {/* TOP-RIGHT PANEL — hidden when tools hidden */}
-        {!isToolsHidden && (
+        {/* TOP-RIGHT PANEL — hidden when tools hidden atau embed mode */}
+        {!isToolsHidden && !isEmbedMode && (
           <Panel position="top-right" className="flex items-center gap-2">
-            {/* Line Selector from Database */}
             <LineSelector />
-
-            {/* View Mode Toggle */}
             <ViewModeToggle />
-
-            {/* Save/Load */}
             <SaveLoadPanel />
-
-            {/* Export/Embed */}
             <FlowExporter />
-
-            {/* Save to Database */}
             <SaveToDatabaseDialog />
 
-            {/* Hide Tools — only in shapes mode */}
             {viewMode === 'shapes' && (
               <TooltipProvider>
                 <Tooltip>
@@ -257,7 +287,6 @@ const FlowCanvas = () => {
               </TooltipProvider>
             )}
 
-            {/* Live Indicator */}
             <div className="bg-white/80 backdrop-blur-sm p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -269,8 +298,8 @@ const FlowCanvas = () => {
         )}
       </ReactFlow>
 
-      {/* UndoRedoIndicator — hidden when tools hidden */}
-      {!isToolsHidden && <UndoRedoIndicator />}
+      {/* UndoRedoIndicator — hidden when tools hidden atau embed mode */}
+      {!isToolsHidden && !isEmbedMode && <UndoRedoIndicator />}
     </div>
   );
 };
