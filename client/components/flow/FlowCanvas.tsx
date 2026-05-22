@@ -130,7 +130,7 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
             data: {
               ...node.data,
               chairDesign: (node.data as any).chairDesign || {
-                enabled: true,
+                enabled: false,
                 chairColor: (node.data as any).color || '#a855f7',
                 showIdInChair: true,
                 showProcessInChair: true,
@@ -260,11 +260,6 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
         {/* TOP-RIGHT PANEL — hidden when tools hidden atau embed mode */}
         {!isToolsHidden && !isEmbedMode && (
           <Panel position="top-right" className="flex items-center gap-2">
-            <LineSelector />
-            <ViewModeToggle />
-            <SaveLoadPanel />
-            <FlowExporter />
-            <SaveToDatabaseDialog />
 
             {viewMode === 'shapes' && (
               <TooltipProvider>
@@ -286,6 +281,12 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
                 </Tooltip>
               </TooltipProvider>
             )}
+
+            <LineSelector />
+            <ViewModeToggle />
+            <SaveLoadPanel />
+            <FlowExporter />
+            <SaveToDatabaseDialog />
 
             <div className="bg-white/80 backdrop-blur-sm p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-bold border border-green-100">

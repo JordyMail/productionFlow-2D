@@ -1,6 +1,16 @@
 // client/components/shapes/ShapeCanvas.tsx
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Shape, LineShape, RectangleShape, CircleShape, TriangleShape, TextShape } from '@/shared/types';
+import { 
+  Shape, 
+  LineShape, 
+  RectangleShape, 
+  CircleShape, 
+  TriangleShape, 
+  TextShape, 
+  StandardWaitShape, 
+  QualityConfirmShape, 
+  SafetyNoteShape 
+} from '@/shared/types';
 import { cn } from '@/lib/utils';
 
 interface ShapeCanvasProps {
@@ -57,6 +67,9 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
   const isCircle = (shape: Shape): shape is CircleShape => shape.type === 'circle';
   const isTriangle = (shape: Shape): shape is TriangleShape => shape.type === 'triangle';
   const isText = (shape: Shape): shape is TextShape => shape.type === 'text';
+  const isStandardWait = (shape: Shape): shape is StandardWaitShape => shape.type === 'standardWait';
+  const isQualityConfirm = (shape: Shape): shape is QualityConfirmShape => shape.type === 'qualityConfirm';
+  const isSafetyNote = (shape: Shape): shape is SafetyNoteShape => shape.type === 'safetyNote';
 
   // Hit detection untuk resize handles pada line
   const getLineHandles = (shape: LineShape) => {
@@ -203,6 +216,47 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
                x <= text.x + textWidth &&
                y >= text.y - textHeight && 
                y <= text.y;
+      }
+      
+      case 'standardWait': {
+        const waitShape = shape as StandardWaitShape;
+        const cx = waitShape.x + waitShape.radius;
+        const cy = waitShape.y + waitShape.radius;
+        const dx = x - cx;
+        const dy = y - cy;
+        return Math.sqrt(dx * dx + dy * dy) <= waitShape.radius;
+      }
+      
+      case 'qualityConfirm': {
+        const qcShape = shape as QualityConfirmShape;
+        const halfSize = qcShape.size / 2;
+        const cx = qcShape.x + halfSize;
+        const cy = qcShape.y + halfSize;
+        
+        // Convert to diamond coordinate system
+        const dx = Math.abs(x - cx);
+        const dy = Math.abs(y - cy);
+        
+        // Point is inside diamond if sum of normalized distances <= 1
+        return (dx / halfSize + dy / halfSize) <= 1;
+      }
+      
+      case 'safetyNote': {
+        const snShape = shape as SafetyNoteShape;
+        const halfSize = snShape.size / 2;
+        const halfThickness = snShape.thickness / 2;
+        const cx = snShape.x + halfSize;
+        const cy = snShape.y + halfSize;
+        
+        // Check if point is in vertical bar
+        const inVertical = Math.abs(x - cx) <= halfThickness && 
+                           Math.abs(y - cy) <= halfSize;
+        
+        // Check if point is in horizontal bar
+        const inHorizontal = Math.abs(y - cy) <= halfThickness && 
+                             Math.abs(x - cx) <= halfSize;
+        
+        return inVertical || inHorizontal;
       }
       
       default:
@@ -385,6 +439,89 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
           }
           break;
         }
+
+        case 'standardWait': {
+          const waitShape = shape as StandardWaitShape;
+          const cx = waitShape.x + waitShape.radius;
+          const cy = waitShape.y + waitShape.radius;
+          const r = waitShape.radius;
+          
+          // Draw white background circle
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fillStyle = waitShape.backgroundColor || '#FFFFFF';
+          ctx.fill();
+          
+          // Draw horizontal stripes
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.clip(); // Clip to circle
+          
+          const stripeSpacing = waitShape.stripeSpacing || 6;
+          const stripeWidth = waitShape.stripeWidth || 2;
+          const startY = cy - r;
+          const endY = cy + r;
+          
+          ctx.fillStyle = waitShape.stripeColor || '#DC2626';
+          for (let y = startY; y <= endY; y += stripeSpacing) {
+            ctx.fillRect(cx - r, y, r * 2, stripeWidth);
+          }
+          
+          ctx.restore();
+          
+          // Draw red outline
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = waitShape.outlineColor || '#DC2626';
+          ctx.lineWidth = waitShape.outlineWidth || 3;
+          ctx.stroke();
+          
+          break;
+        }
+
+        case 'qualityConfirm': {
+          const qcShape = shape as QualityConfirmShape;
+          const halfSize = qcShape.size / 2;
+          const cx = qcShape.x + halfSize;
+          const cy = qcShape.y + halfSize;
+          
+          // Draw diamond (rotated square)
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - halfSize);           // Top
+          ctx.lineTo(cx + halfSize, cy);           // Right
+          ctx.lineTo(cx, cy + halfSize);           // Bottom
+          ctx.lineTo(cx - halfSize, cy);           // Left
+          ctx.closePath();
+          
+          // Fill with yellow
+          ctx.fillStyle = qcShape.fillColor || '#FFD700';
+          ctx.fill();
+          
+          // Outline
+          ctx.strokeStyle = qcShape.outlineColor || '#ffffff';
+          ctx.lineWidth = qcShape.outlineWidth || 1.5;
+          ctx.stroke();
+          
+          break;
+        }
+
+        case 'safetyNote': {
+          const snShape = shape as SafetyNoteShape;
+          const halfSize = snShape.size / 2;
+          const cx = snShape.x + halfSize;
+          const cy = snShape.y + halfSize;
+          const halfThickness = snShape.thickness / 2;
+          
+          // Draw vertical bar of cross
+          ctx.fillStyle = snShape.color || '#16A34A';
+          ctx.fillRect(cx - halfThickness, cy - halfSize, snShape.thickness, snShape.size);
+          
+          // Draw horizontal bar of cross
+          ctx.fillRect(cx - halfSize, cy - halfThickness, snShape.size, snShape.thickness);
+          
+          break;
+        }
       }
       
       ctx.restore();
@@ -421,6 +558,12 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
         return 100; // Approximate
       case 'text':
         return (shape as TextShape).text.length * (shape as TextShape).fontSize * 0.6;
+      case 'standardWait':
+        return (shape as StandardWaitShape).radius * 2;
+      case 'qualityConfirm':
+        return (shape as QualityConfirmShape).size;
+      case 'safetyNote':
+        return (shape as SafetyNoteShape).size;
       default:
         return 50;
     }
@@ -439,6 +582,12 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
         return 100; // Approximate
       case 'text':
         return (shape as TextShape).fontSize;
+      case 'standardWait':
+        return (shape as StandardWaitShape).radius * 2;
+      case 'qualityConfirm':
+        return (shape as QualityConfirmShape).size;
+      case 'safetyNote':
+        return (shape as SafetyNoteShape).size;
       default:
         return 50;
     }
@@ -573,6 +722,45 @@ const ShapeCanvas: React.FC<ShapeCanvasProps> = ({
         const textWidth = (text.text?.length || 4) * (text.fontSize || 14) * 0.6;
         const textHeight = text.fontSize || 14;
         ctx.strokeRect(text.x - 2, text.y - textHeight - 2, textWidth + 4, textHeight + 4);
+        break;
+      }
+
+      case 'standardWait': {
+        const waitShape = shape as StandardWaitShape;
+        const cx = waitShape.x + waitShape.radius;
+        const cy = waitShape.y + waitShape.radius;
+        const r = waitShape.radius;
+        
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
+
+      case 'qualityConfirm': {
+        const qcShape = shape as QualityConfirmShape;
+        const halfSize = qcShape.size / 2;
+        const cx = qcShape.x + halfSize;
+        const cy = qcShape.y + halfSize;
+        
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - halfSize - 2);
+        ctx.lineTo(cx + halfSize + 2, cy);
+        ctx.lineTo(cx, cy + halfSize + 2);
+        ctx.lineTo(cx - halfSize - 2, cy);
+        ctx.closePath();
+        ctx.stroke();
+        break;
+      }
+
+      case 'safetyNote': {
+        const snShape = shape as SafetyNoteShape;
+        const halfSize = snShape.size / 2;
+        const cx = snShape.x + halfSize;
+        const cy = snShape.y + halfSize;
+        const halfThickness = snShape.thickness / 2;
+        
+        ctx.strokeRect(cx - halfSize - 2, cy - halfSize - 2, snShape.size + 4, snShape.size + 4);
         break;
       }
     }

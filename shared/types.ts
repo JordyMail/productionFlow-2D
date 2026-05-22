@@ -1,7 +1,7 @@
 // shared/types.ts
 
 // Shape primitives
-export type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'line' | 'text';
+export type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'line' | 'text' | 'standardWait' | 'qualityConfirm' | 'safetyNote';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type FrameType = 'rectangle' | 'rectangle2x1' | 'rectangle1x2' | 'circle' | 'triangle';
 export type HandlePosition = 'top' | 'bottom' | 'left' | 'right';
@@ -56,7 +56,36 @@ export interface TextShape extends BaseShape {
   textAlign?: 'left' | 'center' | 'right';
 }
 
-export type Shape = RectangleShape | CircleShape | TriangleShape | LineShape | TextShape;
+// NEW: Standard Wait Shape
+export interface StandardWaitShape extends BaseShape {
+  type: 'standardWait';
+  radius: number;           // Radius lingkaran
+  outlineColor: string;     // Warna outline (default: red)
+  outlineWidth: number;     // Ketebalan outline
+  stripeColor: string;      // Warna garis horizontal
+  stripeWidth: number;      // Ketebalan garis horizontal
+  stripeSpacing: number;    // Jarak antar garis
+  backgroundColor: string;  // Warna background
+}
+
+// NEW: Quality Confirm Shape
+export interface QualityConfirmShape extends BaseShape {
+  type: 'qualityConfirm';
+  size: number;             // Ukuran diamond (lebar/tinggi)
+  fillColor: string;        // Warna kuning (default: #FFD700)
+  outlineColor: string;     // Warna outline (default: black)
+  outlineWidth: number;     // Ketebalan outline
+}
+
+// NEW: Safety Note Shape
+export interface SafetyNoteShape extends BaseShape {
+  type: 'safetyNote';
+  size: number;             // Ukuran cross
+  thickness: number;        // Ketebalan garis cross
+  color: string;            // Warna hijau (default: #16A34A)
+}
+
+export type Shape = RectangleShape | CircleShape | TriangleShape | LineShape | TextShape | StandardWaitShape | QualityConfirmShape | SafetyNoteShape;
 
 // Machine Template
 export interface MachineTemplate {
@@ -159,6 +188,47 @@ export const createDefaultShape = (type: ShapeType, id: string): Shape => {
         fontStyle: 'normal',
         textAlign: 'left'
       } as TextShape;
+
+    // NEW CASES
+    case 'standardWait':
+      return {
+        ...baseProps,
+        type: 'standardWait',
+        radius: 40,
+        outlineColor: '#DC2626',
+        outlineWidth: 3,
+        stripeColor: '#DC2626',
+        stripeWidth: 2,
+        stripeSpacing: 6,
+        backgroundColor: '#FFFFFF',
+        fillColor: '#FFFFFF',
+        strokeColor: '#DC2626',
+        strokeWidth: 3,
+      } as StandardWaitShape;
+
+    case 'qualityConfirm':
+      return {
+        ...baseProps,
+        type: 'qualityConfirm',
+        size: 60,
+        fillColor: '#FFD700',
+        outlineColor: '#000000',
+        outlineWidth: 1.5,
+        strokeColor: '#000000',
+        strokeWidth: 1.5,
+      } as QualityConfirmShape;
+
+    case 'safetyNote':
+      return {
+        ...baseProps,
+        type: 'safetyNote',
+        size: 60,
+        thickness: 12,
+        color: '#16A34A',
+        fillColor: '#16A34A',
+        strokeColor: '#16A34A',
+        strokeWidth: 0,
+      } as SafetyNoteShape;
   }
 };
 
@@ -214,14 +284,14 @@ export const DEFAULT_HANDLE_CONFIG: HandleConfig = {
 };
 
 export const DEFAULT_CHAIR_CONFIG = {
-  enabled: true,
+  enabled: false,
   chairWidth: 80,
   chairHeight: 100,
   seatDepth: 45,
   backrestHeight: 55,
   showIdInChair: true,
   showProcessInChair: true,
-  chairColor: '#a855f7',
+  chairColor: '#afbfe4',
 };
 
 export interface HandleConfig {

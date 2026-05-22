@@ -2,7 +2,12 @@
 import React, { memo, useRef, useEffect } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { MachineData } from '@/store/useStore';
-import { MachineTemplate } from '@/shared/types';
+import { 
+  MachineTemplate, 
+  QualityConfirmShape, 
+  SafetyNoteShape, 
+  StandardWaitShape 
+} from '@/shared/types';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
@@ -109,6 +114,89 @@ const ShapeMachineNode = ({ data, selected }: ShapeMachineNodeProps) => {
           ctx.textBaseline = 'middle';
           ctx.fillText(shape.text || 'Text', shape.x, shape.y);
           break;
+          
+        case 'standardWait': {
+          const waitShape = shape as StandardWaitShape;
+          const cx = shape.x + waitShape.radius;
+          const cy = shape.y + waitShape.radius;
+          const r = waitShape.radius;
+          
+          // Draw white background circle
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fillStyle = waitShape.backgroundColor || '#FFFFFF';
+          ctx.fill();
+          
+          // Draw horizontal stripes (clipped to circle)
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.clip();
+          
+          const stripeSpacing = waitShape.stripeSpacing || 6;
+          const stripeWidth = waitShape.stripeWidth || 2;
+          const startY = cy - r;
+          const endY = cy + r;
+          
+          ctx.fillStyle = waitShape.stripeColor || '#DC2626';
+          for (let y = startY; y <= endY; y += stripeSpacing) {
+            ctx.fillRect(cx - r, y, r * 2, stripeWidth);
+          }
+          ctx.restore();
+          
+          // Draw red outline
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = waitShape.outlineColor || '#DC2626';
+          ctx.lineWidth = waitShape.outlineWidth || 3;
+          ctx.stroke();
+          
+          break;
+        }
+
+        case 'qualityConfirm': {
+          const qcShape = shape as QualityConfirmShape;
+          const halfSize = qcShape.size / 2;
+          const cx = qcShape.x + halfSize;
+          const cy = qcShape.y + halfSize;
+          
+          // Draw diamond
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - halfSize);           // Top
+          ctx.lineTo(cx + halfSize, cy);           // Right
+          ctx.lineTo(cx, cy + halfSize);           // Bottom
+          ctx.lineTo(cx - halfSize, cy);           // Left
+          ctx.closePath();
+          
+          ctx.fillStyle = qcShape.fillColor || '#FFD700';
+          ctx.fill();
+          
+          ctx.strokeStyle = qcShape.outlineColor || '#000000';
+          ctx.lineWidth = qcShape.outlineWidth || 1.5;
+          ctx.stroke();
+          
+          break;
+        }
+
+        case 'safetyNote': {
+          const snShape = shape as SafetyNoteShape;
+          const halfSize = snShape.size / 2;
+          const cx = snShape.x + halfSize;
+          const cy = snShape.y + halfSize;
+          const halfThickness = snShape.thickness / 2;
+          
+          // Draw cross
+          ctx.fillStyle = snShape.color || '#16A34A';
+          
+          // Vertical bar
+          ctx.fillRect(cx - halfThickness, cy - halfSize, snShape.thickness, snShape.size);
+          // Horizontal bar
+          ctx.fillRect(cx - halfSize, cy - halfThickness, snShape.size, snShape.thickness);
+          
+          break;
+        }  
+
+
       }
       
       ctx.restore();

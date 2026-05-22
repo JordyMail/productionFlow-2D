@@ -39,7 +39,10 @@ import {
     TriangleShape, 
     CircleShape, 
     RectangleShape,
-    FrameType 
+    FrameType, 
+    SafetyNoteShape,
+    QualityConfirmShape,
+    StandardWaitShape
 } from '@/shared/types';
 import ShapeCanvas from '@/components/shapes/ShapeCanvas';
 import ShapeProperties from '@/components/shapes/ShapeProperties';
@@ -243,30 +246,39 @@ const ShapeEditor = () => {
     }
   };
 
-  // Helper function untuk merge shape updates
-  const mergeShapeUpdates = (original: Shape, updates: Partial<Shape>): Shape => {
-    // Pastikan type tidak berubah
-    if (updates.type && updates.type !== original.type) {
-      console.warn('Cannot change shape type');
-      delete updates.type;
-    }
-    
-    // Merge berdasarkan type
-    switch (original.type) {
-      case 'rectangle':
-        return { ...original, ...updates } as RectangleShape;
-      case 'circle':
-        return { ...original, ...updates } as CircleShape;
-      case 'triangle':
-        return { ...original, ...updates } as TriangleShape;
-      case 'line':
-        return { ...original, ...updates } as LineShape;
-      case 'text':
-        return { ...original, ...updates } as TextShape;
-      default:
-        return original;
-    }
-  };
+// Helper function untuk merge shape updates
+const mergeShapeUpdates = (original: Shape, updates: Partial<Shape>): Shape => {
+  // Pastikan type tidak berubah
+  if (updates.type && updates.type !== original.type) {
+    console.warn('Cannot change shape type');
+    delete updates.type;
+  }
+  
+  // Merge berdasarkan type
+  switch (original.type) {
+    case 'rectangle':
+      return { ...original, ...updates } as RectangleShape;
+    case 'circle':
+      return { ...original, ...updates } as CircleShape;
+    case 'triangle':
+      return { ...original, ...updates } as TriangleShape;
+    case 'line':
+      return { ...original, ...updates } as LineShape;
+    case 'text':
+      return { ...original, ...updates } as TextShape;
+    // ✅ TAMBAHKAN CASE UNTUK SHAPES BARU
+    case 'standardWait':
+      return { ...original, ...updates } as StandardWaitShape;
+    case 'qualityConfirm':
+      return { ...original, ...updates } as QualityConfirmShape;
+    case 'safetyNote':
+      return { ...original, ...updates } as SafetyNoteShape;
+    default:
+      // ✅ Fallback: tetap merge untuk tipe yang tidak dikenal
+      console.warn('Unknown shape type, merging anyway:', original.type);
+      return { ...original, ...updates } as Shape;
+  }
+};
 
   // === EMBED MODE HANDLER (Letakkan setelah deklarasi state) ===
   useEffect(() => {
@@ -492,6 +504,67 @@ const ShapeEditor = () => {
           zIndex: template.shapes.length,
           rotation: 0
         } as TextShape;
+        break;
+
+        case 'standardWait':
+        newShape = {
+          id: baseId,
+          type: 'standardWait',
+          x: template.width / 2 - 30,
+          y: template.height / 2 - 30,
+          radius: 16,
+          outlineColor: '#DC2626',
+          outlineWidth: 3,
+          stripeColor: '#DC2626',
+          stripeWidth: 2,
+          stripeSpacing: 6,
+          backgroundColor: '#FFFFFF',
+          fillColor: '#FFFFFF',
+          strokeColor: '#DC2626',
+          strokeWidth: 3,
+          strokeStyle: 'solid',
+          opacity: 1,
+          zIndex: template.shapes.length,
+          rotation: 0
+        } as StandardWaitShape;
+        break;
+
+      case 'qualityConfirm':
+        newShape = {
+          id: baseId,
+          type: 'qualityConfirm',
+          x: template.width / 2 - 30,
+          y: template.height / 2 - 30,
+          size: 35,
+          fillColor: '#FFD700',
+          outlineColor: '#000000',
+          outlineWidth: 1.5,
+          strokeColor: '#000000',
+          strokeWidth: 1.5,
+          strokeStyle: 'solid',
+          opacity: 1,
+          zIndex: template.shapes.length,
+          rotation: 0
+        } as QualityConfirmShape;
+        break;
+
+      case 'safetyNote':
+        newShape = {
+          id: baseId,
+          type: 'safetyNote',
+          x: template.width / 2 - 30,
+          y: template.height / 2 - 30,
+          size: 35,
+          thickness: 12,
+          color: '#16A34A',
+          fillColor: '#16A34A',
+          strokeColor: '#16A34A',
+          strokeWidth: 0,
+          strokeStyle: 'solid',
+          opacity: 1,
+          zIndex: template.shapes.length,
+          rotation: 0
+        } as SafetyNoteShape;
         break;
         
       default:

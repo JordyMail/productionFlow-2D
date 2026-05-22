@@ -233,7 +233,7 @@ export class FlowRepository {
         targetHandle: edge.targetHandle || 'top-target',
         type,
         style: {
-          stroke: (edge.style?.stroke as string) || (type === 'operator' ? '#a855f7' : '#1e293b'),
+          stroke: (edge.style?.stroke as string) || (type === 'operator' ? '#afbfe4' : '#1e293b'),
           strokeWidth: (edge.style?.strokeWidth as number) || 2,
           strokeDasharray: edge.style?.strokeDasharray as string,
           animated: edge.animated || false,

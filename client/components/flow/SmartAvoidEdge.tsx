@@ -364,7 +364,7 @@ const SmartAvoidEdge = (props: EdgeProps) => {
 
   const isOperatorEdge = data?.operatorId !== undefined;
   const baseColor =
-    (style.stroke as string) || (isOperatorEdge ? '#a855f7' : '#1e293b');
+    (style.stroke as string) || (isOperatorEdge ? '#afbfe4' : '#1e293b');
 
   const edgeStyle = {
     ...style,

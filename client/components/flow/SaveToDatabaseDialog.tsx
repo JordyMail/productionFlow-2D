@@ -251,28 +251,6 @@ const SaveToDatabaseDialog: React.FC = () => {
               className="text-xs resize-none"
             />
           </div>
-
-          {/* Stats */}
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <p className="text-xs font-medium text-slate-600 mb-1">Layout Summary</p>
-            <div className="grid grid-cols-2 gap-2 text-[10px]">
-              <span className="text-slate-400">
-                Machines: <span className="font-bold text-slate-700">
-                  {nodes.filter(n => n.type === 'machineNode' || n.type === 'shapeMachineNode').length}
-                </span>
-              </span>
-              <span className="text-slate-400">
-                Operators: <span className="font-bold text-slate-700">
-                  {nodes.filter(n => n.type === 'operatorNode' || n.type === 'shapeOperatorNode').length}
-                </span>
-              </span>
-              <span className="text-slate-400">
-                Connections: <span className="font-bold text-slate-700">
-                  {useStore.getState().edges.length}
-                </span>
-              </span>
-            </div>
-          </div>
         </div>
 
         <DialogFooter className="flex flex-col gap-3">

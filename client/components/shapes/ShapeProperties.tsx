@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { Shape, LineStyle, RectangleShape, CircleShape, LineShape, TextShape } from '@/shared/types';
+import { Shape, LineStyle, RectangleShape, CircleShape, LineShape, TextShape, SafetyNoteShape, QualityConfirmShape, StandardWaitShape } from '@/shared/types';
 import { cn } from '@/lib/utils';
 
 interface ShapePropertiesProps {
@@ -63,6 +63,9 @@ const ShapeProperties: React.FC<ShapePropertiesProps> = ({
   const isShapeWithBorder = (shape: Shape): boolean => {
     return ['rectangle', 'circle', 'triangle'].includes(shape.type);
   };
+  const isStandardWait = (shape: Shape): shape is StandardWaitShape => shape.type === 'standardWait';
+  const isQualityConfirm = (shape: Shape): shape is QualityConfirmShape => shape.type === 'qualityConfirm';
+  const isSafetyNote = (shape: Shape): shape is SafetyNoteShape => shape.type === 'safetyNote';
 
   // Line-specific functions
   const extendLine = (direction: 'left' | 'right' | 'up' | 'down', amount: number = 10) => {
@@ -476,6 +479,139 @@ const ShapeProperties: React.FC<ShapePropertiesProps> = ({
               </Button>
             </div>
           </div>
+        )}
+        {/* Standard Wait Properties */}
+        {isStandardWait(shape) && (
+          <>
+            <div className="space-y-3">
+              <Label className="text-xs font-bold text-slate-400 uppercase">Standard Wait</Label>
+              <div>
+                <Label className="text-[10px] text-slate-500">Radius</Label>
+                <Input
+                  type="number"
+                  value={shape.radius}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val > 0) onUpdate({ radius: val });
+                  }}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Outline Color</Label>
+                <div className="flex gap-2">
+                  <input type="color" value={shape.outlineColor} onChange={(e) => onUpdate({ outlineColor: e.target.value })} className="w-10 h-8" />
+                  <Input value={shape.outlineColor} onChange={(e) => onUpdate({ outlineColor: e.target.value })} className="flex-1 h-8 text-sm font-mono" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Outline Width</Label>
+                <Input
+                  type="number"
+                  value={shape.outlineWidth}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val > 0) onUpdate({ outlineWidth: val });
+                  }}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Stripe Color</Label>
+                <div className="flex gap-2">
+                  <input type="color" value={shape.stripeColor} onChange={(e) => onUpdate({ stripeColor: e.target.value })} className="w-10 h-8" />
+                  <Input value={shape.stripeColor} onChange={(e) => onUpdate({ stripeColor: e.target.value })} className="flex-1 h-8 text-sm font-mono" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Stripe Spacing</Label>
+                <Input
+                  type="number"
+                  value={shape.stripeSpacing}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val > 0) onUpdate({ stripeSpacing: val });
+                  }}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Quality Confirm Properties */}
+        {isQualityConfirm(shape) && (
+          <>
+            <div className="space-y-3">
+              <Label className="text-xs font-bold text-slate-400 uppercase">Quality Confirm</Label>
+              <div>
+                <Label className="text-[10px] text-slate-500">Size</Label>
+                <Input
+                  type="number"
+                  value={shape.size}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val > 0) onUpdate({ size: val });
+                  }}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Fill Color</Label>
+                <div className="flex gap-2">
+                  <input type="color" value={shape.fillColor} onChange={(e) => onUpdate({ fillColor: e.target.value })} className="w-10 h-8" />
+                  <Input value={shape.fillColor} onChange={(e) => onUpdate({ fillColor: e.target.value })} className="flex-1 h-8 text-sm font-mono" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Outline Color</Label>
+                <div className="flex gap-2">
+                  <input type="color" value={shape.outlineColor} onChange={(e) => onUpdate({ outlineColor: e.target.value })} className="w-10 h-8" />
+                  <Input value={shape.outlineColor} onChange={(e) => onUpdate({ outlineColor: e.target.value })} className="flex-1 h-8 text-sm font-mono" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Safety Note Properties */}
+        {isSafetyNote(shape) && (
+          <>
+            <div className="space-y-3">
+              <Label className="text-xs font-bold text-slate-400 uppercase">Safety Note</Label>
+              <div>
+                <Label className="text-[10px] text-slate-500">Size</Label>
+                <Input
+                  type="number"
+                  value={shape.size}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val > 0) onUpdate({ size: val });
+                  }}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Thickness</Label>
+                <Input
+                  type="number"
+                  value={shape.thickness}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val > 0) onUpdate({ thickness: val });
+                  }}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Color</Label>
+                <div className="flex gap-2">
+                  <input type="color" value={shape.color} onChange={(e) => onUpdate({ color: e.target.value, fillColor: e.target.value })} className="w-10 h-8" />
+                  <Input value={shape.color} onChange={(e) => onUpdate({ color: e.target.value, fillColor: e.target.value })} className="flex-1 h-8 text-sm font-mono" />
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Stroke Style - for all shapes */}

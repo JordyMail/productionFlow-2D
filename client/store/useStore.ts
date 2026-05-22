@@ -34,6 +34,7 @@ import {
   fetchFlowByLineId,
   fetchAllSavedLines,
 } from '@/services/api';
+import { fa } from 'zod/v4/locales';
 
 export type MachineStatus = 'active' | 'idle' | 'warning' | 'down';
 
@@ -141,7 +142,7 @@ interface FlowState {
 
 const generateOperatorColor = (id: number): string => {
   const hue = (id * 137.5) % 360;
-  return `hsl(${hue}, 70%, 60%)`;
+  return `hsl(${hue}, 70%, 45%)`;
 };
 
 const getDefaultHandleConfig = (): HandleConfig => ({
@@ -172,8 +173,8 @@ const createMachineData = (type: string): MachineData => ({
 });
 
 const createDefaultChairConfig = (color?: string) => ({
-  enabled: true,
-  chairColor: color || '#a855f7',
+  enabled: false,
+  chairColor: color || '#afbfe4',
   showIdInChair: true,
   showProcessInChair: true,
   chairWidth: 80,
@@ -902,14 +903,14 @@ export const useStore = create<FlowState>((set, get) => ({
               animated: true,
               style: {
                 stroke: sourceNode.data.color || generateOperatorColor(id),
-                strokeWidth: 2,
-                strokeDasharray: '5,5',
+                strokeWidth: 4,
+                strokeDasharray: '6,4',
               },
               markerEnd: {
                 type: MarkerType.ArrowClosed,
                 color: sourceNode.data.color || generateOperatorColor(id),
-                width: 15,
-                height: 15,
+                width: 10,
+                height: 10,
               },
               data: {
                 operatorId: id,

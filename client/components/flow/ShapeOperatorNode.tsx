@@ -29,11 +29,11 @@ const ShapeOperatorNode = ({ data, selected }: ShapeOperatorNodeProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { id, process, label, handles, color, chairDesign } = data;
 
-  const nodeColor = color || '#55c6f7';
-  const chairConfig = chairDesign || { enabled: true };
+  const nodeColor = color || '#ffffff4f';
+  const chairConfig = chairDesign || { enabled: false };
   
   // Ukuran node: gunakan circleDiameter jika ada, default 80px (persegi)
-  const nodeSize = chairConfig.circleDiameter || 80;
+  const nodeSize = chairConfig.circleDiameter || 60; 
 
   // Draw chair/lingkaran on canvas
   useEffect(() => {
@@ -69,11 +69,16 @@ const ShapeOperatorNode = ({ data, selected }: ShapeOperatorNodeProps) => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // Hanya ID dan Process, tanpa label atau teks lain
-      ctx.font = '16px Inter, sans-serif';
-      ctx.fillText(`Opt:${id}`, centerX, centerY - 6);
-      ctx.font = '14px Inter, sans-serif';
-      ctx.fillText(`${process}`, centerX, centerY + 8);
+      // tampilkan ID dan Process
+      // ctx.font = 'bold 16px Inter, sans-serif';
+      // ctx.fillText(`${id}`, centerX, centerY - 7);  
+      // ctx.font = 'bold 14px Inter, sans-serif';
+      // ctx.fillText(`${process}`, centerX, centerY + 7); 
+
+
+      // Hanya tampilkan process saja
+      ctx.font = 'bold 24px Inter, sans-serif'; 
+      ctx.fillText(`${process}`, centerX, centerY);  
       
       return;
     }

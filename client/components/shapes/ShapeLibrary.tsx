@@ -6,7 +6,10 @@ import {
   Triangle,
   Minus,
   Type,
-  Image
+  Image,
+  AlertCircle,     // ✅ Untuk Standard Wait
+  Diamond,         // ✅ Untuk Quality Confirm
+  Plus as PlusIcon // ✅ Untuk Safety Note
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
@@ -21,6 +24,10 @@ const shapes = [
   { type: 'triangle', icon: Triangle, label: 'Triangle', color: '#f59e0b' },
   { type: 'line', icon: Minus, label: 'Line', color: '#ef4444' },
   { type: 'text', icon: Type, label: 'Text', color: '#8b5cf6' },
+  // ✅ NEW SHAPES
+  { type: 'standardWait', icon: AlertCircle, label: 'Standard Wait', color: '#DC2626' },
+  { type: 'qualityConfirm', icon: Diamond, label: 'Quality Confirm', color: '#FFD700' },
+  { type: 'safetyNote', icon: PlusIcon, label: 'Safety Note', color: '#16A34A' },
 ];
 
 const ShapeLibrary: React.FC<ShapeLibraryProps> = ({ onAddShape }) => {
