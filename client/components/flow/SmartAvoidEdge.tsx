@@ -93,6 +93,8 @@ function midpoint(a: Point2D, b: Point2D): Point2D {
 // =============================================
 
 function getWaypointsAroundObstacle(rect: BoundingBox, margin: number = 20): Point2D[] {
+  const effectiveMargin = Math.min(margin, 12);
+  
   const left = rect.x - margin;
   const right = rect.x + rect.width + margin;
   const top = rect.y - margin;
@@ -105,10 +107,16 @@ function getWaypointsAroundObstacle(rect: BoundingBox, margin: number = 20): Poi
     { x: right, y: top },
     { x: right, y: bottom },
     { x: left, y: bottom },
-    { x: cx, y: top },
-    { x: right, y: cy },
-    { x: cx, y: bottom },
-    { x: left, y: cy },
+    // 4 midpoints (lebih dekat ke node)
+    { x: cx, y: top - 5 },
+    { x: right + 5, y: cy },
+    { x: cx, y: bottom + 5 },
+    { x: left - 5, y: cy },
+    // ✅ Tambahan: waypoint lebih dekat lagi
+    { x: cx, y: top + 5 },
+    { x: right - 5, y: cy },
+    { x: cx, y: bottom - 5 },
+    { x: left + 5, y: cy },
   ];
 }
 
@@ -140,6 +148,46 @@ function findSafePath(
 
   if (isLineSafe(source.x, source.y, target.x, target.y, obstacles)) {
     return { waypoints: [source, target], totalDistance: distance(source, target) };
+  }
+
+  // ✅ CEK JIKA SOURCE DAN TARGET SANGAT DEKAT
+  const directDistance = distance(source, target);
+  const MIN_SAFE_DISTANCE = 80; // Jarak minimum yang dianggap aman
+
+  // Jika jarak terlalu dekat, buat path langsung saja
+  if (directDistance < MIN_SAFE_DISTANCE) {
+    // Coba buat path dengan sedikit offset ke samping
+    const midX = (source.x + target.x) / 2;
+    const midY = (source.y + target.y) / 2;
+    
+    // Tentukan arah offset (horizontal atau vertikal)
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    
+    let midWaypoint: Point2D;
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Lebih horizontal - offset ke atas/bawah
+      const offsetY = directDistance * 0.5;
+      midWaypoint = { x: midX, y: midY - offsetY };
+    } else {
+      // Lebih vertikal - offset ke kiri/kanan
+      const offsetX = directDistance * 0.5;
+      midWaypoint = { x: midX + offsetX, y: midY };
+    }
+    
+    // Pastikan waypoint aman
+    if (isPointSafe(midWaypoint, obstacles, 5) &&
+        isLineSafe(source.x, source.y, midWaypoint.x, midWaypoint.y, obstacles, 3) &&
+        isLineSafe(midWaypoint.x, midWaypoint.y, target.x, target.y, obstacles, 3)) {
+      return {
+        waypoints: [source, midWaypoint, target],
+        totalDistance: distance(source, midWaypoint) + distance(midWaypoint, target),
+      };
+    }
+    
+    // Jika tidak bisa, tetap pakai direct path
+    return { waypoints: [source, target], totalDistance: directDistance };
   }
 
   const allWaypoints: Point2D[] = [];
@@ -259,15 +307,18 @@ function buildSmoothPath(waypoints: Point2D[]): string {
 function getNodeBoundingBox(node: any): BoundingBox {
   let width = 220;
   let height = 140;
+  let marginReduction = 0;
 
   switch (node.type) {
     case 'operatorNode':
       width = 180;
       height = 130;
+      marginReduction = 10;
       break;
     case 'shapeOperatorNode':
       width = (node.data?.chairDesign?.chairWidth || 80) + 10;
       height = (node.data?.chairDesign?.chairHeight || 100) + 40;
+      marginReduction = 15;
       break;
     case 'machineNode':
       width = 220;
@@ -289,10 +340,10 @@ function getNodeBoundingBox(node: any): BoundingBox {
   }
 
   return {
-    x: node.position.x,
-    y: node.position.y,
-    width,
-    height,
+    x: node.position.x + marginReduction,
+    y: node.position.y + marginReduction,
+    width: width - marginReduction * 2,
+    height: height - marginReduction * 2,
     centerX: node.position.x + width / 2,
     centerY: node.position.y + height / 2,
     id: node.id,
@@ -385,7 +436,7 @@ const SmartAvoidEdge = (props: EdgeProps) => {
       <BaseEdge id={id} path={edgePath} style={edgeStyle} markerEnd={markerEnd} />
 
       {/* Show avoiding indicator only — no operator process labels */}
-      {isAvoiding && (
+      {/* {isAvoiding && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -412,7 +463,7 @@ const SmartAvoidEdge = (props: EdgeProps) => {
               : `↪ ${obstacles.length} obstacle`}
           </div>
         </EdgeLabelRenderer>
-      )}
+      )} */}
     </>
   );
 };

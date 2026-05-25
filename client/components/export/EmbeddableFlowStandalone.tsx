@@ -1,3 +1,4 @@
+// ini ngak dipakai bang gans!
 // client/components/export/EmbeddableFlowStandalone.tsx
 // =============================================
 // STANDALONE COMPONENT - Bisa di-copy ke aplikasi lain

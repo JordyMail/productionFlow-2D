@@ -899,7 +899,7 @@ export const useStore = create<FlowState>((set, get) => ({
               target: targetNode.id,
               sourceHandle: handles.sourceHandle,
               targetHandle: handles.targetHandle,
-              type: 'smart-avoid',
+              type: 'z',
               animated: true,
               style: {
                 stroke: sourceNode.data.color || generateOperatorColor(id),
