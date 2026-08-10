@@ -119,7 +119,7 @@ export default function Index() {
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:3001',
-        'http://10.125.20.42:3000'
+        'http://10.125.20.42:3000',
       ];
       
       if (!allowedOrigins.includes(event.origin)) {
@@ -130,6 +130,55 @@ export default function Index() {
       const { type, lineId, formations, timestamp } = event.data;
 
       console.log('[Index] Received message:', { type, lineId, formations, timestamp, origin: event.origin });
+
+      // ==========================================
+      // ✅ SISIPKAN DI SINI (Langkah 3 - Ekspor Data)
+      // ==========================================
+      if (type === 'CAPTURE_SNAPSHOT') {
+        // Menyedot data mentah (posisi dan mesin) langsung dari memori React Flow
+        const currentNodes = useStore.getState().nodes;
+        const currentEdges = useStore.getState().edges;
+
+        // Mengonversi objek JavaScript menjadi teks JSON statis
+        const snapshotData = JSON.stringify({ nodes: currentNodes, edges: currentEdges });
+
+        if (event.source && 'postMessage' in event.source) {
+          (event.source as WindowProxy).postMessage({
+            type: 'SNAPSHOT_RESULT',
+            data: snapshotData
+          }, event.origin);
+        }
+        
+        return; // Menghentikan eksekusi fungsi lebih lanjut untuk pesan ini
+      }
+      
+      // ==========================================
+      // ✅ PENERIMA PERINTAH RENDER SNAPSHOT DI SUMMARY VIEW
+      // ==========================================
+      if (type === 'LOAD_SNAPSHOT' && event.data.snapshotData) {
+        console.log('[Index] Memuat data snapshot JSON...');
+        try {
+          const parsedData = typeof event.data.snapshotData === 'string' 
+            ? JSON.parse(event.data.snapshotData) 
+            : event.data.snapshotData;
+
+          // Memaksa state React Flow untuk menggunakan data usang dari JSON
+          useStore.setState({ 
+            nodes: parsedData.nodes || [], 
+            edges: parsedData.edges || [] 
+          });
+
+          // Memusatkan kamera (zoom to fit) agar semua mesin terlihat
+          setTimeout(() => {
+            const { fitView } = useStore.getState();
+            if (fitView) fitView({ padding: 0.2 });
+          }, 200);
+        } catch (err) {
+          console.error('[Index] Gagal mengurai snapshot:', err);
+        }
+        return; // Hentikan agar tidak lanjut memproses LOAD_FLOW
+      }
+      // ==========================================
 
       if (type === 'LOAD_FLOW' && lineId) {
         console.log('[Index] Loading flow for line:', lineId);

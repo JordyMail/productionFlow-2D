@@ -50,35 +50,41 @@ const ShapeOperatorNode = ({ data, selected }: ShapeOperatorNodeProps) => {
     ctx.clearRect(0, 0, width, height);
 
     if (!chairConfig.enabled) {
-      // Fallback: gambar lingkaran sederhana yang memenuhi canvas
-      const radius = Math.min(width, height) / 2 - 5; // radius dengan margin 5px
+      const radius = Math.min(width, height) / 2 - 5; 
       const centerX = width / 2;
       const centerY = height / 2;
       
+      const isEmbedMode = new URLSearchParams(window.location.search).get('embed') === 'true';
+      
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      ctx.fillStyle = `${nodeColor}30`;
-      ctx.fill();
-      ctx.strokeStyle = nodeColor;
-      ctx.lineWidth = 2;
-      ctx.stroke();
 
-      // Draw ID dan Process di tengah lingkaran (tanpa teks tambahan)
+      if (isEmbedMode) {
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = nodeColor;
+        ctx.fill();
+        
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = nodeColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else {
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+        
+        ctx.strokeStyle = nodeColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
       ctx.fillStyle = nodeColor;
-      ctx.font = 'bold 12px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      
-      // tampilkan ID dan Process
-      // ctx.font = 'bold 16px Inter, sans-serif';
-      // ctx.fillText(`${id}`, centerX, centerY - 7);  
-      // ctx.font = 'bold 14px Inter, sans-serif';
-      // ctx.fillText(`${process}`, centerX, centerY + 7); 
-
-
-      // Hanya tampilkan process saja
       ctx.font = 'bold 24px Inter, sans-serif'; 
-      ctx.fillText(`${process}`, centerX, centerY);  
+      
+      const processDisplay = (process !== null && process !== undefined) ? `${process}` : '';
+      ctx.fillText(processDisplay, centerX, centerY);  
       
       return;
     }
