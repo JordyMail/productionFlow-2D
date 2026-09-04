@@ -65,6 +65,7 @@ interface FlowState {
   lastSaved: string | null;
   currentLineId: string | null;
   currentLineName: string | null;
+  setCurrentLineId: (lineId: string | null) => void;
 
   history: HistoryItem[];
   historyIndex: number;
@@ -282,7 +283,16 @@ export const useStore = create<FlowState>((set, get) => ({
   // UI state
   isToolsHidden: false,
   setIsToolsHidden: (hidden: boolean) => set({ isToolsHidden: hidden }),
+  // ================================
+  // CURRENT LINE
+  // ================================
+  setCurrentLineId: (lineId: string | null) => {
 
+    set({
+      currentLineId: lineId,
+    });
+
+  },
   // =============================================
   // CHECK DATABASE CONNECTION
   // =============================================
@@ -1253,8 +1263,12 @@ export const useStore = create<FlowState>((set, get) => ({
       nodeTemplates: {},
       currentLineId: null,
       currentLineName: null,
+      lastSaved: null,
     });
     get().pushToHistory('Cleared all');
+    localStorage.removeItem(
+      'flow2d-save'
+    );
   },
 }));
 
@@ -1270,34 +1284,57 @@ useStore.getState().loadTemplates();
 // Check database connection
 useStore.getState().checkDbConnection();
 
-// Load flow: localStorage only if within 30 minutes, then sync from DB if lineId exists
-const savedFlow = localStorage.getItem('flow2d-save');
-if (savedFlow) {
-  try {
-    const flowData = JSON.parse(savedFlow);
-    const savedTime = flowData.timestamp
-      ? new Date(flowData.timestamp).getTime()
-      : 0;
-    const isRecent = Date.now() - savedTime <= THIRTY_MINUTES_MS;
+// =============================================
+// LOAD SAVED FLOW CONDITION
+// =============================================
+const params = new URLSearchParams(
+  window.location.search
+);
+const mode = params.get('mode');
+// Jangan load localStorage kalau create new
+if (mode !== 'new') {
+  const savedFlow = localStorage.getItem(
+    'flow2d-save'
+  );
+  if (savedFlow) {
+    try {
+      const flowData = JSON.parse(savedFlow);
+      const savedTime = flowData.timestamp
+        ? new Date(flowData.timestamp).getTime()
+        : 0;
+      const isRecent =
+        Date.now() - savedTime <= THIRTY_MINUTES_MS;
+      if (
+        isRecent &&
+        flowData.nodes &&
+        flowData.nodes.length > 0
+      ) {
+        useStore
+          .getState()
+          .loadFromLocalStorage();
+      }
+      if (flowData.currentLineId) {
+        useStore
+          .getState()
+          .loadFlowFromDatabase(
+            flowData.currentLineId
+          )
+          .catch(() => {
+            console.log(
+              '[Init] Database unavailable'
+            );
+          });
+      }
+    } catch(e) {
 
-    // Load from localStorage only if data is recent (within 30 minutes)
-    if (isRecent && flowData.nodes && flowData.nodes.length > 0) {
-      useStore.getState().loadFromLocalStorage();
+      console.warn(
+        '[Init] Failed parse saved flow'
+      );
+
     }
 
-    // Always try to sync from database if there is a cached lineId
-    if (flowData.currentLineId) {
-      useStore
-        .getState()
-        .loadFlowFromDatabase(flowData.currentLineId)
-        .catch(() => {
-          // Database unavailable — keep localStorage data if it was loaded
-          console.log('[Init] Database unavailable, using cached data');
-        });
-    }
-  } catch (e) {
-    console.warn('[Init] Failed to parse saved flow');
   }
+
 }
 
 // Auto-save function

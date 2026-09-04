@@ -1,5 +1,10 @@
 // client/components/flow/FlowCanvas.tsx
-import React, { useCallback, useEffect, useRef, useMemo } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -29,7 +34,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-// nodeTypes didefinisikan di luar komponen
 const nodeTypes = {
   machineNode: MachineNode,
   shapeMachineNode: ShapeMachineNode,
@@ -45,7 +49,9 @@ interface FlowCanvasProps {
   isEmbedMode?: boolean;
 }
 
-const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
+const FlowCanvas: React.FC<FlowCanvasProps> = ({
+  isEmbedMode = false,
+}) => {
   const {
     nodes,
     edges,
@@ -64,29 +70,71 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
   const nodeChangesTimer = useRef<NodeJS.Timeout>();
   const hasAutoFitted = useRef(false);
 
-  // Auto fit view saat nodes berubah (untuk embed mode)
+  // =====================================================
+  // AUTO FIT VIEW UNTUK EMBED MODE
+  // =====================================================
   useEffect(() => {
     if (isEmbedMode && nodes.length > 0 && !hasAutoFitted.current) {
       const timer = setTimeout(() => {
         console.log('[FlowCanvas] Auto fitting view for embed mode');
-        reactFlowInstance.fitView({ 
-          padding: 0.3,
-          duration: 300,
-          maxZoom: 1.5,
+
+        reactFlowInstance.fitView({
+          padding: 0.03,
+          duration: 0,
+          maxZoom: 3,
         });
+
         hasAutoFitted.current = true;
       }, 500);
-      
+
       return () => clearTimeout(timer);
     }
-    
-    // Reset flag saat nodes berubah signifikan
+
     if (nodes.length === 0) {
       hasAutoFitted.current = false;
     }
   }, [isEmbedMode, nodes.length, reactFlowInstance]);
 
-  // Keyboard shortcut: Ctrl+Shift+H — toggle hide tools
+  // =====================================================
+  // EXPOSE CONTROL UNTUK PLAYWRIGHT PDF CAPTURE
+  // =====================================================
+  useEffect(() => {
+    if (!isEmbedMode) {
+      return;
+    }
+
+    (window as any).__SWS_CAPTURE__ = {
+      fitView: () => {
+        console.log('[SWS_CAPTURE] fitView requested');
+
+        reactFlowInstance.fitView({
+          padding: 0.01,
+          duration: 0,
+          maxZoom: 4,
+        });
+      },
+
+      zoomOut: () => {
+        console.log('[SWS_CAPTURE] zoomOut requested');
+
+        const viewport = reactFlowInstance.getViewport();
+
+        reactFlowInstance.setViewport({
+          x: viewport.x,
+          y: viewport.y,
+          zoom: viewport.zoom * 0.85,
+        });
+      },
+    };
+
+    return () => {
+      delete (window as any).__SWS_CAPTURE__;
+    };
+  }, [isEmbedMode, reactFlowInstance]);
+
+  // =====================================================
+  // KEYBOARD SHORTCUT
+  // =====================================================
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -98,7 +146,9 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
         setIsToolsHidden(!useStore.getState().isToolsHidden);
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
+
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setIsToolsHidden]);
 
@@ -117,49 +167,77 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
     }
   }, [setSelectedNodeId, isEmbedMode]);
 
-  // Transform nodes based on view mode
+  // =====================================================
+  // MACHINE TEMPLATE RESOLVER
+  // =====================================================
+  const resolveMachineTemplate = useCallback(
+    (node: any) => {
+      const data = (node.data || {}) as any;
+
+      return (
+        data.template ||
+        data.machineTemplate ||
+        data.selectedTemplate ||
+        data.shapeTemplate ||
+        getNodeTemplate(node.id) ||
+        null
+      );
+    },
+    [getNodeTemplate]
+  );
+
+  // =====================================================
+  // NODE TRANSFORM BY VIEW MODE
+  // =====================================================
   const processedNodes = useMemo(() => {
     if (viewMode === 'default') {
       return nodes;
-    } else {
-      return nodes.map((node) => {
-        if (node.type === 'operatorNode') {
-          return {
-            ...node,
-            type: 'shapeOperatorNode',
-            data: {
-              ...node.data,
-              chairDesign: (node.data as any).chairDesign || {
-                enabled: false,
-                chairColor: (node.data as any).color || '#a855f7',
-                showIdInChair: true,
-                showProcessInChair: true,
-                chairWidth: 80,
-                chairHeight: 100,
-                seatDepth: 45,
-                backrestHeight: 55,
-              },
-            },
-          };
-        }
-
-        if (node.type === 'machineNode' || node.type === 'shapeMachineNode') {
-          return {
-            ...node,
-            type: 'shapeMachineNode',
-            data: {
-              ...node.data,
-              template: getNodeTemplate(node.id),
-            },
-          };
-        }
-
-        return node;
-      });
     }
-  }, [nodes, viewMode, getNodeTemplate]);
 
-  // Process edges with node data for obstacle detection
+    return nodes.map((node) => {
+      if (node.type === 'operatorNode') {
+        return {
+          ...node,
+          type: 'shapeOperatorNode',
+          data: {
+            ...node.data,
+            chairDesign: (node.data as any).chairDesign || {
+              enabled: false,
+              chairColor: (node.data as any).color || '#a855f7',
+              showIdInChair: true,
+              showProcessInChair: true,
+              chairWidth: 80,
+              chairHeight: 100,
+              seatDepth: 45,
+              backrestHeight: 55,
+            },
+          },
+        };
+      }
+
+      if (
+        node.type === 'machineNode' ||
+        node.type === 'shapeMachineNode'
+      ) {
+        const template = resolveMachineTemplate(node);
+
+        return {
+          ...node,
+          type: 'shapeMachineNode',
+          data: {
+            ...node.data,
+            template,
+          },
+        };
+      }
+
+      return node;
+    });
+  }, [nodes, viewMode, resolveMachineTemplate]);
+
+  // =====================================================
+  // EDGE PROCESSING
+  // =====================================================
   const processedEdges = useMemo(() => {
     return edges.map((edge) => ({
       ...edge,
@@ -219,37 +297,52 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
         onPaneContextMenu={(e) => e.preventDefault()}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView={!isEmbedMode} // Jangan gunakan fitView bawaan untuk embed mode
+        fitView={!isEmbedMode}
         snapToGrid
         snapGrid={[15, 15]}
+        proOptions={{
+          hideAttribution: isEmbedMode,
+        }}
         defaultEdgeOptions={{
-          style: { stroke: '#1e293b', strokeWidth: 2 },
+          style: {
+            stroke: '#1e293b',
+            strokeWidth: 2,
+          },
           animated: false,
           type: 'smart-avoid',
         }}
-        // Nonaktifkan interaksi dalam embed mode
         nodesDraggable={!isEmbedMode}
         nodesConnectable={!isEmbedMode}
         elementsSelectable={!isEmbedMode}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
-
-        {/* Controls (zoom in/out) — selalu visible */}
-        <Controls 
-          showInteractive={false} 
-          className="fill-slate-700"
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color="#cbd5e1"
         />
 
-        {/* MiniMap — hidden when tools hidden atau embed mode */}
+        {!isEmbedMode && (
+          <Controls
+            showInteractive={false}
+            className="fill-slate-700"
+          />
+        )}
+
         {!isToolsHidden && !isEmbedMode && (
           <MiniMap
             nodeColor={(n) => {
-              if (n.type === 'operatorNode' || n.type === 'shapeOperatorNode') {
+              if (
+                n.type === 'operatorNode' ||
+                n.type === 'shapeOperatorNode'
+              ) {
                 return (n.data as any).color || '#a855f7';
               }
+
               if (n.data?.status === 'active') return '#22c55e';
               if (n.data?.status === 'warning') return '#f59e0b';
               if (n.data?.status === 'down') return '#ef4444';
+
               return '#94a3b8';
             }}
             maskColor="rgba(241, 245, 249, 0.7)"
@@ -257,10 +350,8 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
           />
         )}
 
-        {/* TOP-RIGHT PANEL — hidden when tools hidden atau embed mode */}
         {!isToolsHidden && !isEmbedMode && (
           <Panel position="top-right" className="flex items-center gap-2">
-
             {viewMode === 'shapes' && (
               <TooltipProvider>
                 <Tooltip>
@@ -275,6 +366,7 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
                       <span className="text-xs font-medium">Hide Tools</span>
                     </Button>
                   </TooltipTrigger>
+
                   <TooltipContent side="bottom">
                     <p className="text-xs">Ctrl+Shift+H</p>
                   </TooltipContent>
@@ -293,13 +385,13 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({ isEmbedMode = false }) => {
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 LIVE
               </div>
+
               <Info size={14} className="text-slate-400" />
             </div>
           </Panel>
         )}
       </ReactFlow>
 
-      {/* UndoRedoIndicator — hidden when tools hidden atau embed mode */}
       {!isToolsHidden && !isEmbedMode && <UndoRedoIndicator />}
     </div>
   );

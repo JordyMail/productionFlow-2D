@@ -1,3 +1,4 @@
+-- server\db\schema.sql
 -- =============================================
 -- FLOW2D - DATABASE RESET & RECREATE
 -- Jalankan di SSMS pada database ProcessTime_IAB
